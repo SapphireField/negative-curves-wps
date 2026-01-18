@@ -1,0 +1,304 @@
+// The following prepares the magmaprogram to be ready.
+SetIgnorePrompt(true);
+Q:=Rationals();
+R<t>:=PolynomialRing(Q);
+K:=FieldOfFractions(R);
+S<s>:=PowerSeriesRing(Q,50);
+
+
+
+//this is a function that calculates the contribution from the cyclic quotient singularities to Riemann-Roch. 
+//F.eks. contribution from a singularity of type 1/r(a,b) can be calculated by Contribution(r,[a,b]).
+//Output of this function is sigma_n, (n=0,...r-1.) (as given in the formular in (2.1)) 
+
+
+function Contribution(r, LL)
+QQ:=Rationals();
+Poly<t>:=PolynomialRing(QQ);
+L:=[Integers()|i: i in LL]; 
+n:=#LL;
+pi:=&*[(1-t^i):i in L]; A:=Poly!((1-t^r)/(1-t));
+G:=GCD(pi, A); dG:=Degree(G);
+B:=Poly!(A/G); dB:=Degree(B);
+a,be,c:=XGCD(pi, B); dbe:=Degree(be);
+R<[v]>:=PolynomialRing(QQ,dG+2);
+va:=Name(R,dG+2);
+bnew:=&+[Coefficient(be,i)*va^i: i in [0..dbe]];
+RR:=&+[v[i]*va^(i-1): i in [1..dG+1]];
+Bnew:=&+[Coefficient(B,i)*va^i: i in [0..dB]];
+AA:=bnew-RR*Bnew;
+S:=[Coefficient(AA,va, 0)] cat [Coefficient(AA, va, r-i): i in [1..r-1]];
+empty:=[];
+for a in L do
+dd:=GCD(a,r); tt:=r/dd;
+relations:=empty cat [&+[S[dd*l+i]: l in [0..tt-1]]: i in [1..dd]];
+empty:=relations;
+end for;
+Mat:=Matrix(QQ,[[Coefficient(empty[i],v[j],1):j in [1..dG+1]]:i in
+[1..#empty]]);
+zero:=[0: i in [1..dG+2]];
+V:=-Vector(QQ,[Evaluate(empty[i],zero): i in [1..#empty]]);
+MF:=Transpose(Mat); x,y,z:=IsConsistent(MF,V);
+yy:=&+[y[i+1]*va^(i):i in [0..dG]];
+sigma:=bnew-yy*Bnew;
+Sigma:=[QQ!Coefficient(sigma, va, 0)] cat [QQ!Coefficient(sigma, va,
+i): i in [1..r-1]];
+return Sigma;
+end function;
+
+// ---------- Example run ----------
+Contribution(5,[11,13]);
+
+
+// This function output the contributions in the Riemann-Roch formula  for all three singularities.
+function Con(n,a,b,c)
+if a eq 1 then 
+L1:=[0,0];
+else
+L1:=Contribution(a,[b,c]);
+end if;
+if b eq 1 then
+L2:=[0,0];
+else
+L2:=Contribution(b,[a,c]);
+end if;
+if c eq 1 then
+L3:=[0,0];
+else
+L3:=Contribution(c,[a,b]);
+end if;
+l1:= n mod a; c1:=L1[l1+1]-L1[1];
+l2:= n mod b; c2:=L2[l2+1]-L2[1];
+l3:= n mod c; c3:=L3[l3+1]-L3[1];
+return c1+c2+c3;
+end function;
+
+// ---------- Example run ----------
+// Calculate the Euler characteristics of the sheaf \Oh(n) on weighted projective plane \PP(5,11, 13).
+// For example, the dimension of H^0(\Oh(n)) for n in [1..20] can be given
+a,b,c:=Explode([5,11,13]);
+[1+1/2*(n^2+n*(a+b+c))/(a*b*c)+Con(n, a,b,c): n in [1..20]];
+
+// The contributions from the singularities are periodic.
+// The following function puts contributions from all three singularities Con(n,a,b,c) for n in [0..a*b*c-1] in one vector.
+
+function MakeCon(a,b,c)
+    L1 := (a eq 1) select [0,0] else Contribution(a,[b,c]);
+    L2 := (b eq 1) select [0,0] else Contribution(b,[a,c]);
+    L3 := (c eq 1) select [0,0] else Contribution(c,[a,b]);
+ return [((a eq 1) select 0 else L1[(n mod a)+1] - L1[1]) +
+        ((b eq 1) select 0 else L2[(n mod b)+1] - L2[1]) +
+        ((c eq 1) select 0 else L3[(n mod c)+1] - L3[1]): n in [0..a*b*c-1]];
+end function;
+
+// ---------- Example run ----------
+// Calculate the Euler characteristics of the sheaf \Oh(n) on weighted projective plane \PP(5,11, 13).
+// For example, the dimension of H^0(\Oh(n)) for n in [1..20] can be given
+a,b,c:=Explode([3,5,7]);
+[1+1/2*(n^2+n*(a+b+c))/(a*b*c)+MakeCon(a,b,c)[n mod (a*b*c) + 1]: n in [0..100]];
+
+
+// The following function outputs a number and a vector
+// 1) the Dimension of curves that is of degree $deg$ and passing through the blowup point $mult$ times for \PP(a,b,c);
+// 2) A vector With elements: base curves of the linear system. 
+
+function Curve(deg, mult, a,b,c)
+
+        PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+        d:=mult;
+
+        L:=MonomialsOfWeightedDegree(PP,deg);
+
+        n:=#L;
+
+        LL:=[];
+
+            for i in [0..d-1] do
+
+                for m in [0..d-1-i] do
+
+                ll:=[Derivative(Derivative(Derivative(L[j],i,z),d-1-i-m,x),m,y): j in [1..n]];
+
+                l:=[Evaluate(ll[j],[1,1,1]): j in [1..n]];
+
+                LL:=LL cat l;
+
+                end for;
+
+            end for;
+
+        r:=Binomial(d+1,2);
+
+        X:=Matrix(Rationals(),r,n,LL);
+
+        XT:=Transpose(X);
+
+        r:=Binomial(d+1,2);
+
+        w:=ZeroMatrix(Rationals(),1,r);
+
+        A,B:=Solution(XT,w);
+
+        Dim:= Dimension(B);
+ 
+return Dim, [&+[Basis(B)[i][j]*L[j]: j in [1..n]]: i in [1..Dim]];
+end function;
+
+// ---------- Example run ----------
+// The following example outputs dimensions of curves of degree 21 and passing through the blowup point 2 times on \PP(3,5,7).
+dim,base:=Curve(21,2,3,5,7);
+
+// The following is outputs from Mamga
+//> dim;
+//1
+//> base;
+//[
+//    x^7 + x^2*y^3 - 3*x^3*y*z + z^3
+//]
+
+
+
+// The following functions given another way to find degree $deg$ curves that pass through the blowup point $mult$ times on \PP(a,b,c).
+
+function ExponentTriples(N, wa, wb, wc)
+    triples := [];
+    maxA := N div wa;
+    for aExp in [0..maxA] do
+        rem1 := N - wa*aExp;
+        maxB := rem1 div wb;
+        for bExp in [0..maxB] do
+            rem2 := rem1 - wb*bExp;
+            if rem2 mod wc eq 0 then
+                cExp := rem2 div wc;
+                Append(~triples, <aExp, bExp, cExp>);
+            end if;
+        end for;
+    end for;
+    return triples;
+end function;
+
+function RowTriples(d)
+    rows := [];
+    for u in [0..d-1] do
+        for v in [0..d-1-u] do
+            w := d - 1 - u - v;
+            Append(~rows, <u, v, w>);
+        end for;
+    end for;
+    return rows;
+end function;
+
+// ---------- Memory-safe DesiredCurves ----------
+
+// This function uses the two functions above and is faster than Curve(deg, mult, a,b,c), and it has the same outputs as in Curve(deg, mult, a,b,c)
+
+function FasterCurve(deg, mult,a,b,c)
+PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+    // Guard to avoid gigantic dense matrices (entries count r*n)
+    // Tune as you like; 2e6 entries is typically safe on modest RAM.
+    LIMIT := 2000000;
+
+          d := mult;
+        Ndeg:=deg;
+        rowTriples := RowTriples(d);
+        r := #rowTriples;
+
+        cols := ExponentTriples(Ndeg, a, b, c);
+	
+        n := #cols;
+	Monomials:=[x^cols[i][1]*y^cols[i][2]*z^cols[i][3]: i in [1..n]];
+
+        if r*n gt LIMIT then
+            // Skip instead of risking a crash
+            printf "Skipping (k=%o, n=%o): r*n=%o exceeds %o\n", d, Ndeg, r*n, LIMIT;
+        end if;
+
+        // Build integer matrix X (r x n) with entries:
+        // X[(u,v,w),(A,B,C)] = binom(A,u) * binom(B,v) * binom(C,w) * u! v! w!
+        X := ZeroMatrix(Integers(), r, n);
+        rowFactors := [ Factorial(rowTriples[j][1]) * Factorial(rowTriples[j][2]) * Factorial(rowTriples[j][3]) : j in [1..r] ];
+
+        for j in [1..r] do
+            u := rowTriples[j][1];
+            v := rowTriples[j][2];
+            w := rowTriples[j][3];
+            uf := rowFactors[j];
+            for col in [1..n] do
+                Aexp := cols[col][1];
+                Bexp := cols[col][2];
+                Cexp := cols[col][3];
+                X[j, col] := uf * Binomial(Aexp, u) * Binomial(Bexp, v) * Binomial(Cexp, w);
+            end for;
+        end for;
+
+        // Solve XT * vec = 0 ⇒ Nullspace(XT) over Q
+        XT := Transpose(X);
+        XTrat := ChangeRing(XT, Rationals());
+        K := Nullspace(XTrat);
+	D:=Dimension(K);
+	B:=Basis(K);
+	return D, [&+[B[i][j]*Monomials[j]: j in [1..n]]: i in [1..D]];
+end function;
+
+
+// As a procedure if wanted. 
+
+procedure CurvesDM(deg, mult,a,b,c)
+printf "WPS: P%o\n------------------\n", [a,b,c];
+PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+    // Guard to avoid gigantic dense matrices (entries count r*n)
+    // Tune as you like; 2e6 entries is typically safe on modest RAM.
+    LIMIT := 2000000;
+
+          d := mult;
+        Ndeg:=deg;
+        rowTriples := RowTriples(d);
+        r := #rowTriples;
+
+        cols := ExponentTriples(Ndeg, a, b, c);
+	
+        n := #cols;
+	Monomials:=[x^cols[i][1]*y^cols[i][2]*z^cols[i][3]: i in [1..n]];
+
+        if r*n gt LIMIT then
+            // Skip instead of risking a crash
+            printf "Skipping (k=%o, n=%o): r*n=%o exceeds %o\n", d, Ndeg, r*n, LIMIT;
+        end if;
+
+        // Build integer matrix X (r x n) with entries:
+        // X[(u,v,w),(A,B,C)] = binom(A,u) * binom(B,v) * binom(C,w) * u! v! w!
+        X := ZeroMatrix(Integers(), r, n);
+        rowFactors := [ Factorial(rowTriples[j][1]) * Factorial(rowTriples[j][2]) * Factorial(rowTriples[j][3]) : j in [1..r] ];
+
+        for j in [1..r] do
+            u := rowTriples[j][1];
+            v := rowTriples[j][2];
+            w := rowTriples[j][3];
+            uf := rowFactors[j];
+            for col in [1..n] do
+                Aexp := cols[col][1];
+                Bexp := cols[col][2];
+                Cexp := cols[col][3];
+                X[j, col] := uf * Binomial(Aexp, u) * Binomial(Bexp, v) * Binomial(Cexp, w);
+            end for;
+        end for;
+
+        // Solve XT * vec = 0 ⇒ Nullspace(XT) over Q
+        XT := Transpose(X);
+        XTrat := ChangeRing(XT, Rationals());
+        K := Nullspace(XTrat);
+	D:=Dimension(K);
+	B:=Basis(K);
+	 printf "The dimension of the desired curve space is: %o\n", D;
+
+        if D ge 1 then
+	printf "The base curves of the curve space are given by: \n";
+	for i in [1..D] do
+	&+[B[i][j]*Monomials[j]: j in [1..n]];
+	end for;
+        end if;  
+    printf "================================================= \n";
+end procedure;

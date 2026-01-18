@@ -1,0 +1,310 @@
+SetIgnorePrompt(true);
+Q:=Rationals();
+ // K<om> := CyclotomicField(3);
+R<t>:=PolynomialRing(Q);
+K:=FieldOfFractions(R);
+S<s>:=PowerSeriesRing(Q,50);
+
+
+
+//this is a function that calculates the contribution from the cyclic quotient singularities to //Riemann-Roch. F.eks. //contribution from a singularity of type 1/r(a,b) can be calculated by //Contribution(r,[a,b]).
+//Output of this function is sigma_n, (n=0,...r-1.) as in (5.2) from the article(Mori dreamness of //blowups of weighted //projective space).
+
+
+function Contribution(r, LL)
+QQ:=Rationals();
+Poly<t>:=PolynomialRing(QQ);
+L:=[Integers()|i: i in LL]; 
+n:=#LL;
+pi:=&*[(1-t^i):i in L]; A:=Poly!((1-t^r)/(1-t));
+G:=GCD(pi, A); dG:=Degree(G);
+B:=Poly!(A/G); dB:=Degree(B);
+a,be,c:=XGCD(pi, B); dbe:=Degree(be);
+R<[v]>:=PolynomialRing(QQ,dG+2);
+va:=Name(R,dG+2);
+bnew:=&+[Coefficient(be,i)*va^i: i in [0..dbe]];
+RR:=&+[v[i]*va^(i-1): i in [1..dG+1]];
+Bnew:=&+[Coefficient(B,i)*va^i: i in [0..dB]];
+AA:=bnew-RR*Bnew;
+S:=[Coefficient(AA,va, 0)] cat [Coefficient(AA, va, r-i): i in [1..r-1]];
+empty:=[];
+for a in L do
+dd:=GCD(a,r); tt:=r/dd;
+relations:=empty cat [&+[S[dd*l+i]: l in [0..tt-1]]: i in [1..dd]];
+empty:=relations;
+end for;
+Mat:=Matrix(QQ,[[Coefficient(empty[i],v[j],1):j in [1..dG+1]]:i in
+[1..#empty]]);
+zero:=[0: i in [1..dG+2]];
+V:=-Vector(QQ,[Evaluate(empty[i],zero): i in [1..#empty]]);
+MF:=Transpose(Mat); x,y,z:=IsConsistent(MF,V);
+yy:=&+[y[i+1]*va^(i):i in [0..dG]];
+sigma:=bnew-yy*Bnew;
+Sigma:=[QQ!Coefficient(sigma, va, 0)] cat [QQ!Coefficient(sigma, va,
+i): i in [1..r-1]];
+return Sigma;
+end function;
+
+//this function is designed to be used on the blowups of weighted projective space. It gives the //contribution til Riemann-//Roch for a divisor of type n*H-k*E for a given n on the blow up of P
+//(a,b,c).
+
+//function Con(n,a,b,c)
+//L1:=Contribution(a,[b,c]);
+//L2:=Contribution(b,[a,c]);
+//L3:=Contribution(c,[a,b]);
+//l1:= n mod a; c1:=L1[l1+1]-L1[1];
+//l2:= n mod b; c2:=L2[l2+1]-L2[1];
+//l3:= n mod c; c3:=L3[l3+1]-L3[1];
+//return c1+c2+c3;
+//end function;
+
+function MakeCon(a,b,c)
+    L1 := (a eq 1) select [0,0] else Contribution(a,[b,c]);
+    L2 := (b eq 1) select [0,0] else Contribution(b,[a,c]);
+    L3 := (c eq 1) select [0,0] else Contribution(c,[a,b]);
+ return [((a eq 1) select 0 else L1[(n mod a)+1] - L1[1]) +
+        ((b eq 1) select 0 else L2[(n mod b)+1] - L2[1]) +
+        ((c eq 1) select 0 else L3[(n mod c)+1] - L3[1]): n in [0..a*b*c-1]];
+end function;
+
+function Con(n,a,b,c)
+if a eq 1 then 
+L1:=[0,0];
+else
+L1:=Contribution(a,[b,c]);
+end if;
+if b eq 1 then
+L2:=[0,0];
+else
+L2:=Contribution(b,[a,c]);
+end if;
+if c eq 1 then
+L3:=[0,0];
+else
+L3:=Contribution(c,[a,b]);
+end if;
+l1:= n mod a; c1:=L1[l1+1]-L1[1];
+l2:= n mod b; c2:=L2[l2+1]-L2[1];
+l3:= n mod c; c3:=L3[l3+1]-L3[1];
+return c1+c2+c3;
+end function;
+
+
+function LargestElement(vec)
+    maxElement := vec[1]; // Initialize with the first element of the vector
+    for i in [2..#vec] do
+        if vec[i] ge maxElement then
+            maxElement := vec[i];
+        end if;
+    end for;
+    return maxElement;
+end function;
+ 
+// This Eff is an improved Version of Eff. This tests all possible ns as we let n goes up to upperbound for curves of deficiency 0. 
+function Eff(a,b,c)
+Q:=Rationals();
+P<x,y,z,t1,t2>:=PolynomialRing(Q,5);
+x:= 1/(a*b*c); y:=0; z:=-1;
+f:=-(a+b+c); g:=1;
+h1:=func<m,n| 1+1/2*((m^2-m*f)*x+(2*m*n-(m*g+f*n))*y+(n^2-n*g)*z)>;
+sum:=a+b+c;
+pro:=a*b*c;
+startk:=1;
+startn:=1;
+L:=MakeCon(a,b,c);
+max:= LargestElement(L);
+if Sqrt(pro)-sum le 0 then
+MaxN:=100000;
+else
+MaxN:=Floor((0+max)*(2*pro/(Sqrt(pro)-sum)));
+end if;
+for m in [1..MaxN] do 
+k:=Floor(m/Sqrt(pro)+1);
+if h1(m,-k)+L[m mod pro +1] eq 1 and  m^2/(a*b*c)-k^2 le 0 then
+startk:=k;
+startn:=m;
+break m;
+end if;
+end for;
+return [startn,startk];
+end function;
+
+
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run2.txt" : Overwrite := true);
+lo := 1;  hi := 30;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [lo..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run3.txt" : Overwrite := true);
+lo := 1;  hi := 50;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [30..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();
+
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run4.txt" : Overwrite := true);
+lo := 1;  hi := 60;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [51..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run5.txt" : Overwrite := true);
+lo := 1;  hi := 70;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [61..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run6.txt" : Overwrite := true);
+lo := 1;  hi := 80;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [71..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();
+
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run7.txt" : Overwrite := true);
+lo := 1;  hi := 90;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [81..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();
+
+
+SetOutputFile("C:\\Users\\shzh\\Downloads\\run8.txt" : Overwrite := true);
+lo := 1;  hi := 100;
+R  := RSpace(Integers(), 3);
+
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [91..hi]
+             | a lt b and b lt c
+               and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
+
+#Triples; 
+
+for v in Triples do
+    a,b,c := Explode(v);
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "WPS: P%o\n------------------\n", [a,b,c];
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+    else
+        printf "WPS: P%o\nNo negative curve of deficiency 0 found\n", [a,b,c];
+        // or: DesiredCurves(a,b,c,2);  // any prints go to run.txt
+    end if;
+end for;
+
+// 2) stop redirection ONCE
+UnsetOutputFile();

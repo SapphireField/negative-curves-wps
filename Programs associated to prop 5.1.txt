@@ -1,0 +1,286 @@
+// The following function outputs a number and a vector
+// 1) the Dimension of curves that is of degree $deg$ and passing through the blowup point $mult$ times for \PP(a,b,c);
+// 2) A vector With elements: base curves of the linear system. 
+
+function Curve(deg, mult, a,b,c)
+
+        PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+        d:=mult;
+
+        L:=MonomialsOfWeightedDegree(PP,deg);
+
+        n:=#L;
+
+        LL:=[];
+
+            for i in [0..d-1] do
+
+                for m in [0..d-1-i] do
+
+                ll:=[Derivative(Derivative(Derivative(L[j],i,z),d-1-i-m,x),m,y): j in [1..n]];
+
+                l:=[Evaluate(ll[j],[1,1,1]): j in [1..n]];
+
+                LL:=LL cat l;
+
+                end for;
+
+            end for;
+
+        r:=Binomial(d+1,2);
+
+        X:=Matrix(Rationals(),r,n,LL);
+
+        XT:=Transpose(X);
+
+        r:=Binomial(d+1,2);
+
+        w:=ZeroMatrix(Rationals(),1,r);
+
+        A,B:=Solution(XT,w);
+
+        Dim:= Dimension(B);
+ 
+return Dim, [&+[Basis(B)[i][j]*L[j]: j in [1..n]]: i in [1..Dim]];
+end function;
+
+// ---------- Example run ----------
+// The following example outputs dimensions of curves of degree 21 and passing through the blowup point 2 times on \PP(3,5,7).
+dim,base:=Curve(21,2,3,5,7);
+
+// The following is outputs from Mamga
+//> dim;
+//1
+//> base;
+//[
+//    x^7 + x^2*y^3 - 3*x^3*y*z + z^3
+//]
+
+
+
+// The following functions given another way to find degree $deg$ curves that pass through the blowup point $mult$ times on \PP(a,b,c).
+
+function ExponentTriples(N, wa, wb, wc)
+    triples := [];
+    maxA := N div wa;
+    for aExp in [0..maxA] do
+        rem1 := N - wa*aExp;
+        maxB := rem1 div wb;
+        for bExp in [0..maxB] do
+            rem2 := rem1 - wb*bExp;
+            if rem2 mod wc eq 0 then
+                cExp := rem2 div wc;
+                Append(~triples, <aExp, bExp, cExp>);
+            end if;
+        end for;
+    end for;
+    return triples;
+end function;
+
+function RowTriples(d)
+    rows := [];
+    for u in [0..d-1] do
+        for v in [0..d-1-u] do
+            w := d - 1 - u - v;
+            Append(~rows, <u, v, w>);
+        end for;
+    end for;
+    return rows;
+end function;
+
+// ---------- Memory-safe DesiredCurves ----------
+
+// This function uses the two functions above and is faster than Curve(deg, mult, a,b,c), and it has the same outputs as in Curve(deg, mult, a,b,c)
+
+function FasterCurve(deg, mult,a,b,c)
+PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+    // Guard to avoid gigantic dense matrices (entries count r*n)
+    // Tune as you like; 2e6 entries is typically safe on modest RAM.
+    LIMIT := 2000000;
+
+          d := mult;
+        Ndeg:=deg;
+        rowTriples := RowTriples(d);
+        r := #rowTriples;
+
+        cols := ExponentTriples(Ndeg, a, b, c);
+	
+        n := #cols;
+	Monomials:=[x^cols[i][1]*y^cols[i][2]*z^cols[i][3]: i in [1..n]];
+
+        if r*n gt LIMIT then
+            // Skip instead of risking a crash
+            printf "Skipping (k=%o, n=%o): r*n=%o exceeds %o\n", d, Ndeg, r*n, LIMIT;
+        end if;
+
+        // Build integer matrix X (r x n) with entries:
+        // X[(u,v,w),(A,B,C)] = binom(A,u) * binom(B,v) * binom(C,w) * u! v! w!
+        X := ZeroMatrix(Integers(), r, n);
+        rowFactors := [ Factorial(rowTriples[j][1]) * Factorial(rowTriples[j][2]) * Factorial(rowTriples[j][3]) : j in [1..r] ];
+
+        for j in [1..r] do
+            u := rowTriples[j][1];
+            v := rowTriples[j][2];
+            w := rowTriples[j][3];
+            uf := rowFactors[j];
+            for col in [1..n] do
+                Aexp := cols[col][1];
+                Bexp := cols[col][2];
+                Cexp := cols[col][3];
+                X[j, col] := uf * Binomial(Aexp, u) * Binomial(Bexp, v) * Binomial(Cexp, w);
+            end for;
+        end for;
+
+        // Solve XT * vec = 0 ⇒ Nullspace(XT) over Q
+        XT := Transpose(X);
+        XTrat := ChangeRing(XT, Rationals());
+        K := Nullspace(XTrat);
+	D:=Dimension(K);
+	B:=Basis(K);
+	return D, [&+[B[i][j]*Monomials[j]: j in [1..n]]: i in [1..D]];
+end function;
+
+
+// As a procedure if wanted. 
+
+procedure CurvesDM(deg, mult,a,b,c)
+printf "WPS: P%o\n------------------\n", [a,b,c];
+PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+    // Guard to avoid gigantic dense matrices (entries count r*n)
+    // Tune as you like; 2e6 entries is typically safe on modest RAM.
+    LIMIT := 2000000;
+
+          d := mult;
+        Ndeg:=deg;
+        rowTriples := RowTriples(d);
+        r := #rowTriples;
+
+        cols := ExponentTriples(Ndeg, a, b, c);
+	
+        n := #cols;
+	Monomials:=[x^cols[i][1]*y^cols[i][2]*z^cols[i][3]: i in [1..n]];
+
+        if r*n gt LIMIT then
+            // Skip instead of risking a crash
+            printf "Skipping (k=%o, n=%o): r*n=%o exceeds %o\n", d, Ndeg, r*n, LIMIT;
+        end if;
+
+        // Build integer matrix X (r x n) with entries:
+        // X[(u,v,w),(A,B,C)] = binom(A,u) * binom(B,v) * binom(C,w) * u! v! w!
+        X := ZeroMatrix(Integers(), r, n);
+        rowFactors := [ Factorial(rowTriples[j][1]) * Factorial(rowTriples[j][2]) * Factorial(rowTriples[j][3]) : j in [1..r] ];
+
+        for j in [1..r] do
+            u := rowTriples[j][1];
+            v := rowTriples[j][2];
+            w := rowTriples[j][3];
+            uf := rowFactors[j];
+            for col in [1..n] do
+                Aexp := cols[col][1];
+                Bexp := cols[col][2];
+                Cexp := cols[col][3];
+                X[j, col] := uf * Binomial(Aexp, u) * Binomial(Bexp, v) * Binomial(Cexp, w);
+            end for;
+        end for;
+
+        // Solve XT * vec = 0 ⇒ Nullspace(XT) over Q
+        XT := Transpose(X);
+        XTrat := ChangeRing(XT, Rationals());
+        K := Nullspace(XTrat);
+	D:=Dimension(K);
+	B:=Basis(K);
+	 printf "The dimension of the desired curve space is: %o\n", D;
+
+        if D ge 1 then
+	printf "The base curves of the curve space are given by: \n";
+	for i in [1..D] do
+	&+[B[i][j]*Monomials[j]: j in [1..n]];
+	end for;
+        end if;  
+    printf "================================================= \n";
+end procedure;
+
+
+
+------------------------------
+Using the program in Proposition 3.10
+-------------------------------------
+
+ a:=7; b:=10; c:=19;
+> d:=840; mul:=23;
+> n,L:=Curve(d,mul,a,b,c);
+> n;
+1
+> IsIrreducible(L[1]);
+true
+> a:=7; b:=19; c:=22;
+> d:=1254; mul:=23;
+> n,L:=Curve(d,mul,a,b,c);
+> n;
+4
+> IsIrreducible(L[1]);
+true
+> a:=7; b:=23; c:=27;
+> d:=1863; mul:=28;
+> n,L:=Curve(d,mul,a,b,c);
+> n;
+6
+> IsIrreducible(L[1]);
+true
+>
+-------
+> a:=7; b:=26; c:=29;
+> d:=2262; mul:=31;
+> n,L:=Curve(d,mul,a,b,c);
+> n;
+3
+> IsIrreducible(L[1]);
+false
+> IsIrreducible(L[2]);
+false
+> IsIrreducible(L[3]);
+false
+> Factorization(L[1]);
+[
+    <x^31 + x^5*y^7 - x^12*y^4*z - 3*x^19*y*z^2 - 2*y^5*z^3 + 5*x^7*y^2*z^4 - x^2*z^7, 5>,
+    <x^131*y^10 + 408/1369*x^105*y^17 + 2946/1369*x^79*y^24 - 1088/1369*x^53*y^31 + 1053/1369*x^27*y^38 -
+        864/1369*x*y^45 - 26/1369*x^164*z - 3620/1369*x^138*y^7*z + 3484/1369*x^112*y^14*z - 19628/1369*x^86*y^21*z +
+        17806/1369*x^60*y^28*z - 14456/1369*x^34*y^35*z + 13608/1369*x^8*y^42*z + 3057/1369*x^145*y^4*z^2 -
+        33518/1369*x^119*y^11*z^2 + 62540/1369*x^93*y^18*z^2 - 125592/1369*x^67*y^25*z^2 + 101395/1369*x^41*y^32*z^2 -
+        102874/1369*x^15*y^39*z^2 - 390/1369*x^152*y*z^3 + 68632/1369*x^126*y^8*z^3 - 180024/1369*x^100*y^15*z^3 +
+        474020/1369*x^74*y^22*z^3 - 483062/1369*x^48*y^29*z^3 + 496068/1369*x^22*y^36*z^3 - 51546/1369*x^133*y^5*z^4 +
+        459804/1369*x^107*y^12*z^4 - 1146928/1369*x^81*y^19*z^4 + 1671161/1369*x^55*y^26*z^4 -
+        1725650/1369*x^29*y^33*z^4 + 1728/1369*x^3*y^40*z^4 + 9420/1369*x^140*y^2*z^5 - 644928/1369*x^114*y^9*z^5 +
+        2179074/1369*x^88*y^16*z^5 - 4178872/1369*x^62*y^23*z^5 + 4655536/1369*x^36*y^30*z^5 - 25788/1369*x^10*y^37*z^5
+        + 405817/1369*x^121*y^6*z^6 - 3429936/1369*x^95*y^13*z^6 + 7734083/1369*x^69*y^20*z^6 -
+        10091906/1369*x^43*y^27*z^6 + 190887/1369*x^17*y^34*z^6 - 70778/1369*x^128*y^3*z^7 + 3545460/1369*x^102*y^10*z^7
+        - 11408310/1369*x^76*y^17*z^7 + 17609844/1369*x^50*y^24*z^7 - 882978/1369*x^24*y^31*z^7 - 1189/1369*x^135*z^8 -
+        1827092/1369*x^109*y^7*z^8 + 13656897/1369*x^83*y^14*z^8 - 24783658/1369*x^57*y^21*z^8 +
+        2710387/1369*x^31*y^28*z^8 - 1344/1369*x^5*y^35*z^8 + 248228/1369*x^116*y^4*z^9 - 11141424/1369*x^90*y^11*z^9 +
+        29014352/1369*x^64*y^18*z^9 - 5730732/1369*x^38*y^25*z^9 - 1158/1369*x^12*y^32*z^9 + 18728/1369*x^123*y*z^10 +
+        121595/37*x^97*y^8*z^10 - 27866898/1369*x^71*y^15*z^10 + 9127683/1369*x^45*y^22*z^10 + 2676/37*x^19*y^29*z^10 -
+        191662/1369*x^104*y^5*z^11 + 17836108/1369*x^78*y^12*z^11 - 12178618/1369*x^52*y^19*z^11 -
+        489348/1369*x^26*y^26*z^11 + 1328/1369*y^33*z^11 - 132250/1369*x^111*y^2*z^12 - 4225218/1369*x^85*y^9*z^12 +
+        11842839/1369*x^59*y^16*z^12 + 813240/1369*x^33*y^23*z^12 - 3012/1369*x^7*y^30*z^12 - 1496632/1369*x^92*y^6*z^13
+        - 3238596/1369*x^66*y^13*z^13 - 370458/1369*x^40*y^20*z^13 - 77372/1369*x^14*y^27*z^13 +
+        452468/1369*x^99*y^3*z^14 - 6132849/1369*x^73*y^10*z^14 + 1810692/1369*x^47*y^17*z^14 +
+        493848/1369*x^21*y^24*z^14 + 7508/1369*x^106*z^15 + 5328054/1369*x^80*y^7*z^15 - 8072208/1369*x^54*y^14*z^15 -
+        787428/1369*x^28*y^21*z^15 - 5688/1369*x^2*y^28*z^15 - 655557/1369*x^87*y^4*z^16 + 289680/37*x^61*y^11*z^16 -
+        1336587/1369*x^35*y^18*z^16 + 99192/1369*x^9*y^25*z^16 - 59020/1369*x^94*y*z^17 - 4474224/1369*x^68*y^8*z^17 +
+        5459268/1369*x^42*y^15*z^17 - 653220/1369*x^16*y^22*z^17 - 570732/1369*x^75*y^5*z^18 -
+        4680459/1369*x^49*y^12*z^18 + 1961762/1369*x^23*y^19*z^18 + 203748/1369*x^82*y^2*z^19 -
+        487798/1369*x^56*y^9*z^19 - 2463688/1369*x^30*y^16*z^19 - 13252/1369*x^4*y^23*z^19 + 1857850/1369*x^63*y^6*z^20
+        + 20406/1369*x^37*y^13*z^20 + 171674/1369*x^11*y^20*z^20 - 130956/1369*x^70*y^3*z^21 +
+        2179116/1369*x^44*y^10*z^21 - 782200/1369*x^18*y^17*z^21 - 11242/1369*x^77*z^22 - 1123140/1369*x^51*y^7*z^22 +
+        1549845/1369*x^25*y^14*z^22 - 6456/37*x^58*y^4*z^23 - 1113066/1369*x^32*y^11*z^23 - 17220/1369*x^6*y^18*z^23 +
+        15924/1369*x^65*y*z^24 - 50943/1369*x^39*y^8*z^24 + 139940/1369*x^13*y^15*z^24 + 327900/1369*x^46*y^5*z^25 -
+        396802/1369*x^20*y^12*z^25 + 23610/1369*x^53*y^2*z^26 + 396904/1369*x^27*y^9*z^26 + 980/1369*x*y^16*z^26 -
+        117348/1369*x^34*y^6*z^27 - 14928/1369*x^8*y^13*z^27 - 50728/1369*x^41*y^3*z^28 + 62847/1369*x^15*y^10*z^28 -
+        2066/1369*x^48*z^29 - 71736/1369*x^22*y^7*z^29 + 33403/1369*x^29*y^4*z^30 + 714/1369*x^3*y^11*z^30 +
+        3994/1369*x^36*y*z^31 - 6680/1369*x^10*y^8*z^31 + 6718/1369*x^17*y^5*z^32 - 3872/1369*x^24*y^2*z^33 +
+        627/1369*x^5*y^6*z^34 - 314/1369*x^12*y^3*z^35 + 103/1369*x^19*z^36 - 54/1369*y^4*z^37 + 28/1369*x^7*y*z^38, 1>
+]
+>

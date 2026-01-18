@@ -1,0 +1,270 @@
+// To carry out the programs here, one need to lim in the programs: https://drive.google.com/file/d/1Iwg7I_97gWc5x5RY2VpQXXBIKlkor0bz/view
+// and https://drive.google.com/file/d/1f7YJXRSPMAM5Lj9b8xb7ovsa_JcpM9Az/view
+
+1) X(8,15,43)
+
+DesiredCurves(8,15,43,1);
+
+
+//WPS: P[ 8, 15, 43 ]
+//------------------
+
+//Desired Curve may appear for k= 9, n:=645
+//Desired Curve may appear for k= 11, n:=789
+//Desired Curve may appear for k= 14, n:=1005
+
+m,L:=Curve(645,9,8,15,43);
+m;IsIrreducible(L[1]);
+//1
+//true
+
+// Therefore, there is a negative curve of deficiency 1.
+//--------------------
+// Check the mori dreamness, the dual divisor is given by k(72 H -E). 
+
+m,L:=Curve(2*72,2,8,15,43);
+m; IsIrreducible(L[1]);
+//1
+//true
+
+// therefore, there is an irreducible curve in |2(72H-E)| which disjoints With the negative curve.
+
+2) X(5,33,49)
+
+DesiredCurves(5,33,49,1);
+//WPS: P[ 5, 33, 49 ]
+//------------------
+//Desired Curve may appear for Deficiency: 1, k=18, n=1617
+//Desired Curve may appear for Deficiency: 1, k=20, n=1797
+//Desired Curve may appear for Deficiency: 1, k=22, n=1977
+//Desired Curve may appear for Deficiency: 1, k=24, n=2157
+//Desired Curve may appear for Deficiency: 1, k=29, n=2607
+//Desired Curve may appear for Deficiency: 1, k=31, n=2787
+//Desired Curve may appear for Deficiency: 1, k=33, n=2967
+//Desired Curve may appear for Deficiency: 1, k=35, n=3147
+//================================================= i=1
+
+m,L:=Curve(1617,18,5,33,49);
+m; IsIrreducible(L[1]);
+//1
+//true
+
+// Therefore, there is a negative curve of deficiency 1. 
+
+// Check the mori dreamness, the dual divisor is given by k(90H-E). 
+m,L:=Curve(2*90,2,5,33,49);
+m;
+IsIrreducible(L[1]);
+//1
+//true
+
+// Therefore, there is a curve which disjoints with the negative curve. 
+
+
+3) X(13,15,68)
+
+DesiredCurves(13,15,68,1);
+
+//WPS: P[ 13, 15, 68 ]
+//------------------
+//Desired Curve may appear for Deficiency: 1, k=9, n=1035
+//================================================= i=1
+
+m,L:=Curve(1035,9,13,15,68);
+m; IsIrreducible(L[1]); Factorization(L[1]);
+//1 
+//true
+//[
+    <x^75*y^4 + 3*x^60*y^17 - 7*x^30*y^43 - 5*x^15*y^56 + y^69 - 9*x^64*y^9*z -
+        6*x^49*y^22*z + 45*x^34*y^35*z + 50*x^19*y^48*z - 7*x^4*y^61*z -
+        3*x^68*y*z^2 - 117*x^38*y^27*z^2 - 192*x^23*y^40*z^2 + 21*x^8*y^53*z^2 +
+        42*x^57*y^6*z^3 + 193*x^42*y^19*z^3 + 370*x^27*y^32*z^3 -
+        56*x^12*y^45*z^3 - 180*x^46*y^11*z^4 - 385*x^31*y^24*z^4 +
+        170*x^16*y^37*z^4 + 2*x*y^50*z^4 - 18*x^50*y^3*z^5 + 126*x^35*y^16*z^5 -
+        372*x^20*y^29*z^5 - 6*x^5*y^42*z^5 + 160*x^39*y^8*z^6 +
+        502*x^24*y^21*z^6 - 16*x^9*y^34*z^6 + 2*x^43*z^7 - 331*x^28*y^13*z^7 +
+        98*x^13*y^26*z^7 - 54*x^32*y^5*z^8 - 210*x^17*y^18*z^8 + 3*x^2*y^31*z^8
+        + 208*x^21*y^10*z^9 - 15*x^6*y^23*z^9 + 8*x^25*y^2*z^10 +
+        45*x^10*y^15*z^10 - 69*x^14*y^7*z^11 - 3*x^3*y^12*z^12 + 12*x^7*y^4*z^13
+        - y*z^15, 1>
+]
+
+
+// This tells us that there is a negative curve of deficiency 1 here.
+
+// Check the mori dreamness, the dual divisor is given by D=2652H-23E
+
+m,L:=Curve(2*2652,2*23,13,15,68);
+m;
+IsIrreducible(L[1]);
+
+//1
+//false
+
+// We found that there is a curve in 2D, but it is reducible. 
+// It shows that it contains 3C as a factor.
+
+Factorization(L[1]);
+//[
+    <x^75*y^4 + 3*x^60*y^17 - 7*x^30*y^43 - 5*x^15*y^56 + y^69 - 9*x^64*y^9*z -
+        6*x^49*y^22*z + 45*x^34*y^35*z + 50*x^19*y^48*z - 7*x^4*y^61*z -
+        3*x^68*y*z^2 - 117*x^38*y^27*z^2 - 192*x^23*y^40*z^2 + 21*x^8*y^53*z^2 +
+        42*x^57*y^6*z^3 + 193*x^42*y^19*z^3 + 370*x^27*y^32*z^3 -
+        56*x^12*y^45*z^3 - 180*x^46*y^11*z^4 - 385*x^31*y^24*z^4 +
+        170*x^16*y^37*z^4 + 2*x*y^50*z^4 - 18*x^50*y^3*z^5 + 126*x^35*y^16*z^5 -
+        372*x^20*y^29*z^5 - 6*x^5*y^42*z^5 + 160*x^39*y^8*z^6 +
+        502*x^24*y^21*z^6 - 16*x^9*y^34*z^6 + 2*x^43*z^7 - 331*x^28*y^13*z^7 +
+        98*x^13*y^26*z^7 - 54*x^32*y^5*z^8 - 210*x^17*y^18*z^8 + 3*x^2*y^31*z^8
+        + 208*x^21*y^10*z^9 - 15*x^6*y^23*z^9 + 8*x^25*y^2*z^10 +
+        45*x^10*y^15*z^10 - 69*x^14*y^7*z^11 - 3*x^3*y^12*z^12 + 12*x^7*y^4*z^13
+        - y*z^15, 3>,
+    <x^168*y + 45/4*x^153*y^14 + 55*x^138*y^27 + 603/4*x^123*y^40 +
+        247*x^108*y^53 + 465/2*x^93*y^66 + 193/2*x^78*y^79 - 67/4*x^63*y^92 -
+        47/2*x^48*y^105 + 5/4*x^33*y^118 + 5/2*x^18*y^131 - 1/4*x^3*y^144 -
+        121/4*x^157*y^6*z - 597/2*x^142*y^19*z - 4989/4*x^127*y^32*z -
+        5615/2*x^112*y^45*z - 3519*x^97*y^58*z - 2133*x^82*y^71*z -
+        463/4*x^67*y^84*z + 837/2*x^52*y^97*z + 123/4*x^37*y^110*z -
+        51*x^22*y^123*z + 15/4*x^7*y^136*z + 801/2*x^146*y^11*z^2 +
+        13545/4*x^131*y^24*z^2 + 11685*x^116*y^37*z^2 + 20415*x^101*y^50*z^2 +
+        17400*x^86*y^63*z^2 + 16263/4*x^71*y^76*z^2 - 5595/2*x^56*y^89*z^2 -
+        651*x^41*y^102*z^2 + 885/2*x^26*y^115*z^2 - 93/4*x^11*y^128*z^2 +
+        14*x^150*y^3*z^3 - 11529/4*x^135*y^16*z^3 - 20585*x^120*y^29*z^3 -
+        111769/2*x^105*y^42*z^3 - 68388*x^90*y^55*z^3 - 113839/4*x^75*y^68*z^3 +
+        8827*x^60*y^81*z^3 + 4475*x^45*y^94*z^3 - 2252*x^30*y^107*z^3 +
+        353/4*x^15*y^120*z^3 - 1/2*y^133*z^3 - 1503/4*x^139*y^8*z^4 +
+        10915*x^124*y^21*z^4 + 66705*x^109*y^34*z^4 + 130251*x^94*y^47*z^4 +
+        332575/4*x^79*y^60*z^4 - 32283/2*x^64*y^73*z^4 - 31635/2*x^49*y^86*z^4 +
+        16385/2*x^34*y^99*z^4 - 1251/4*x^19*y^112*z^4 + 9/2*x^4*y^125*z^4 -
+        3/4*x^143*z^5 + 8625/2*x^128*y^13*z^5 - 10743*x^113*y^26*z^5 -
+        159603/2*x^98*y^39*z^5 - 298101/4*x^83*y^52*z^5 + 47583*x^68*y^65*z^5 +
+        72615/2*x^53*y^78*z^5 - 49575/2*x^38*y^91*z^5 + 4833/4*x^23*y^104*z^5 -
+        12*x^8*y^117*z^5 + 109*x^132*y^5*z^6 - 26521*x^117*y^18*z^6 -
+        79140*x^102*y^31*z^6 - 542905/4*x^87*y^44*z^6 - 199811*x^72*y^57*z^6 -
+        152277/2*x^57*y^70*z^6 + 63352*x^42*y^83*z^6 - 4201*x^27*y^96*z^6 +
+        11*x^12*y^109*z^6 - 4605/2*x^121*y^10*z^7 + 86835*x^106*y^23*z^7 +
+        1271001/4*x^91*y^36*z^7 + 436425*x^76*y^49*z^7 + 142092*x^61*y^62*z^7 -
+        127865*x^46*y^75*z^7 + 13446*x^31*y^88*z^7 - 78*x^16*y^101*z^7 -
+        5/2*x*y^114*z^7 - 21/2*x^125*y^2*z^8 + 42861/2*x^110*y^15*z^8 -
+        103596*x^95*y^28*z^8 - 641961/2*x^80*y^41*z^8 - 305895/4*x^65*y^54*z^8 +
+        435051/2*x^50*y^67*z^8 - 80091/2*x^35*y^80*z^8 + 1005/2*x^20*y^93*z^8 +
+        39/2*x^5*y^106*z^8 + 1163/2*x^114*y^7*z^9 - 103875*x^99*y^20*z^9 -
+        191790*x^84*y^33*z^9 - 1357885/4*x^69*y^46*z^9 - 735005/2*x^54*y^59*z^9
+        + 186717/2*x^39*y^72*z^9 - 4497/2*x^24*y^85*z^9 - 43*x^9*y^98*z^9 -
+        17931/2*x^103*y^12*z^10 + 497781/2*x^88*y^25*z^10 +
+        1254393/2*x^73*y^38*z^10 + 970361/2*x^58*y^51*z^10 -
+        166680*x^43*y^64*z^10 + 10524*x^28*y^77*z^10 + 23*x^13*y^90*z^10 -
+        135/2*x^107*y^4*z^11 + 62823*x^92*y^17*z^11 - 154158*x^77*y^30*z^11 -
+        173913*x^62*y^43*z^11 + 294141*x^47*y^56*z^11 - 33516*x^32*y^69*z^11 +
+        9*x^17*y^82*z^11 - 6*x^2*y^95*z^11 + 4315/2*x^96*y^9*z^12 -
+        432397/2*x^81*y^22*z^12 - 811355/2*x^66*y^35*z^12 -
+        983027/2*x^51*y^48*z^12 + 131197/2*x^36*y^61*z^12 -
+        2495/2*x^21*y^74*z^12 + 67/2*x^6*y^87*z^12 + 3/2*x^100*y*z^13 -
+        46575/2*x^85*y^14*z^13 + 302379*x^70*y^27*z^13 + 860157/2*x^55*y^40*z^13
+        - 241029/2*x^40*y^53*z^13 + 15019/2*x^25*y^66*z^13 - 45/2*x^10*y^79*z^13
+        - 285*x^89*y^6*z^14 + 111750*x^74*y^19*z^14 + 245907/4*x^59*y^32*z^14 +
+        257046*x^44*y^45*z^14 - 16242*x^29*y^58*z^14 + 60*x^14*y^71*z^14 +
+        5585*x^78*y^11*z^15 - 907307/4*x^63*y^24*z^15 - 328262*x^48*y^37*z^15 +
+        27086*x^33*y^50*z^15 - 1235*x^18*y^63*z^15 - 11*x^3*y^76*z^15 +
+        17*x^82*y^3*z^16 - 38907*x^67*y^16*z^16 + 169689/2*x^52*y^29*z^16 -
+        160435/2*x^37*y^42*z^16 + 2973*x^22*y^55*z^16 + 159/4*x^7*y^68*z^16 -
+        873*x^71*y^8*z^17 + 106746*x^56*y^21*z^17 + 147990*x^41*y^34*z^17 -
+        5289/2*x^26*y^47*z^17 + 435/4*x^11*y^60*z^17 + 9657*x^60*y^13*z^18 -
+        74547*x^45*y^26*z^18 + 14550*x^30*y^39*z^18 - 1653/4*x^15*y^52*z^18 -
+        1/2*y^65*z^18 + 171/2*x^64*y^5*z^19 - 71387/2*x^49*y^18*z^19 -
+        44370*x^34*y^31*z^19 - 855/4*x^19*y^44*z^19 - 14*x^4*y^57*z^19 -
+        3543/2*x^53*y^10*z^20 + 65967/2*x^38*y^23*z^20 - 4215/4*x^23*y^36*z^20 +
+        54*x^8*y^49*z^20 - 9/2*x^57*y^2*z^21 + 9060*x^42*y^15*z^21 +
+        36381/4*x^27*y^28*z^21 + 155/2*x^12*y^41*z^21 + 246*x^46*y^7*z^22 -
+        38235/4*x^31*y^20*z^22 - 115*x^16*y^33*z^22 - 3/2*x*y^46*z^22 -
+        7377/4*x^35*y^12*z^23 - 1257*x^20*y^25*z^23 - 9*x^5*y^38*z^23 -
+        25*x^39*y^4*z^24 + 1909*x^24*y^17*z^24 + 125/4*x^9*y^30*z^24 +
+        627/2*x^28*y^9*z^25 + 435/4*x^13*y^22*z^25 + 3/2*x^32*y*z^26 -
+        513/2*x^17*y^14*z^26 - 3/2*x^2*y^27*z^26 - 44*x^21*y^6*z^27 -
+        5*x^6*y^19*z^27 + 21*x^10*y^11*z^28 + 9/2*x^14*y^3*z^29 -
+        3/4*x^3*y^8*z^30 - 1/4*x^7*z^31, 1>
+]
+
+
+a:=13; b:=15; c:=68;
+
+P<x,y,z,t1,t2>:=PolynomialRing(Rationals(),5);
+x:= 1/(a*b*c); y:=0; z:=-1;
+f:=-(a+b+c); g:=1;
+h1:=func<m,n| 1+1/2*((m^2-m*f)*x+(2*m*n-(m*g+f*n))*y+(n^2-n*g)*z)>;
+
+k:=9; n:=1035;
+k1:=23; n1:=2652;
+
+//Riemann-Roch calculations
+//D\sim 2652 H- 23E
+// The following shows that \chi(2D)= 0, and \chi(4D)=4.
+h1(2*n1,-2*k1)+Con(2*n1,a,b,c);
+h1(4*n1,-4*k1)+Con(4*n1,a,b,c);
+//0
+//4
+----
+// The following calculation says that h^0(2D)=1, which then implies h^0(2D)=1.
+m,L:=FasterCurve(2*n1, 2*k1, a,b,c);
+m;
+// 1
+-----
+// The following shows that \chi(2D-3*C)= 1, and \chi(4D-3*C)=5.
+
+h1(2*n1-3*n,-2*k1+3*k)+Con(2*n1-3*n,a,b,c);
+h1(4*n1-3*n,-4*k1+3*k)+Con(4*n1-3*n,a,b,c);
+//1
+//5
+----
+
+//The following shows that h^0 (2D-3*C)= 1
+m, L:=FasterCurve(2*n1-3*n,(2*k1-3*k), a,b,c);
+m;
+//1
+
+
+
+
+
+
+4) X(5,56,83)
+
+a,b,c:=Explode([5,56,83]);
+DesiredCurves(a,b,c,1);
+
+//WPS: P[ 5, 56, 83 ]
+//------------------
+//Desired Curve may appear for Deficiency: 1, k=18, n=2744
+//Desired Curve may appear for Deficiency: 1, k=36, n=5488
+//================================================= i=1
+
+// The potential negative curve lies in 2744H-18E. The following checks the irreducibility.
+m,L:=Curve(2744,18,a,b,c); 
+m; IsIrreducible(L[1]);
+
+//1 
+//true
+
+// This means that there is a negative curve on X(5,56, 83).
+
+a:=5; b:=56; c:=83;
+
+P<x,y,z,t1,t2>:=PolynomialRing(Rationals(),5);
+x:= 1/(a*b*c); y:=0; z:=-1;
+f:=-(a+b+c); g:=1;
+h1:=func<m,n| 1+1/2*((m^2-m*f)*x+(2*m*n-(m*g+f*n))*y+(n^2-n*g)*z)>;
+
+k:=18; n:=2744;
+k1:=49; n1:=7470;
+h1(38*n1-n,-38*k1+k)+Con(38*n1-n,a,b,c);
+
+[h1(l*n1,-l*k1)+Con(l*n1,a,b,c): l in [1..38]];
+
+h1(n1-n,-k1+k)+Con(n1-n,a,b,c);
+
+h1(n1-n,-k1+k)+Con(n1-n,a,b,c);
+[h1(38*k*n1,-38*k*k1)+Con(38*k*n1,a,b,c): k in [1..10]];
+[h1(38*l*n1-n,-38*l*k1+k)+Con(38*l*n1-n,a,b,c): l in [0..10]];
+
+//m,L:=FasterCurve(n1, k1, a,b,c);
+m,L:=FasterCurve(n1-n, k1-k, a,b,c);
+m;

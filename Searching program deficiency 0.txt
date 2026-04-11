@@ -160,7 +160,7 @@ SetOutputFile("C:\\Users\\shzh\\Downloads\\run3.txt" : Overwrite := true);
 lo := 1;  hi := 50;
 R  := RSpace(Integers(), 3);
 
-Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [30..hi]
+Triples := [<a,b,c>    : a in [lo..hi], b in [lo..hi], c in [31..hi]
              | a lt b and b lt c
                and Gcd(a,b) eq 1 and Gcd(a,c) eq 1 and Gcd(b,c) eq 1 ];
 

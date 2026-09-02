@@ -1,0 +1,502 @@
+> // ============================================================
+> // Negative curves on blowups of weighted projective planes
+> // HPC VERSION WITH MODULAR RANK PRETEST
+> // ============================================================
+> 
+> SetIgnorePrompt(true);
+> 
+> MODULAR_PRIMES := [1000003, 1000033, 1000037];
+> 
+> 
+> // ============================================================
+> // Contribution
+> // ============================================================
+> 
+> function Contribution(r,LL)
+function>     QQ := Rationals();
+function>     Poly<t> := PolynomialRing(QQ);
+function> 
+function>     L := [Integers() | i : i in LL];
+function>     pi := &*[(1-t^i) : i in L];
+function>     A := (1-t^r) div (1-t);
+function>     G := GCD(pi,A);
+function>     dG := Degree(G);
+function> 
+function>     B := Poly!(A div G);
+function>     dB := Degree(B);
+function> 
+function>     uu,be,cc := XGCD(pi,B);
+function>     dbe := Degree(be);
+function> 
+function>     R<[v]> := PolynomialRing(QQ,dG+2);
+function>     va := R.(dG+2);
+function> 
+function>     bnew := &+[Coefficient(be,i)*va^i : i in [0..dbe]];
+function>     RR := &+[v[i]*va^(i-1) : i in [1..dG+1]];
+function>     Bnew := &+[Coefficient(B,i)*va^i : i in [0..dB]];
+function>     AA := bnew-RR*Bnew;
+function> 
+function>     S := [Coefficient(AA,va,0)]
+function>          cat [Coefficient(AA,va,r-i) : i in [1..r-1]];
+function> 
+function>     empty := [];
+function> 
+function>     for a in L do
+function|for>         dd := GCD(a,r);
+function|for>         tt := r div dd;
+function|for>         relations := empty cat
+function|for>             [&+[S[dd*l+i] : l in [0..tt-1]] : i in [1..dd]];
+function|for>         empty := relations;
+function|for>     end for;
+function> 
+function>     Mat := Matrix(QQ,[
+function>         [Coefficient(empty[i],v[j],1) : j in [1..dG+1]]
+function>         : i in [1..#empty]
+function>     ]);
+function> 
+function>     zero := [0 : i in [1..dG+2]];
+function>     V := -Vector(QQ,[Evaluate(empty[i],zero) : i in [1..#empty]]);
+function> 
+function>     MF := Transpose(Mat);
+function>     ok,y,z := IsConsistent(MF,V);
+function>     assert ok;
+function> 
+function>     yy := &+[y[i+1]*va^i : i in [0..dG]];
+function>     sigma := bnew-yy*Bnew;
+function> 
+function>     Sigma := [QQ!Coefficient(sigma,va,0)]
+function>              cat [QQ!Coefficient(sigma,va,i) : i in [1..r-1]];
+function> 
+function>     return Sigma;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Contribution helpers
+> // ============================================================
+> 
+> function MakeCon(a,b,c)
+function>     L1 := (a eq 1) select [0,0] else Contribution(a,[b,c]);
+function>     L2 := (b eq 1) select [0,0] else Contribution(b,[a,c]);
+function>     L3 := (c eq 1) select [0,0] else Contribution(c,[a,b]);
+function> 
+function>     return [
+function|return>         ((a eq 1) select 0 else L1[(n mod a)+1]-L1[1])
+function|return>         + ((b eq 1) select 0 else L2[(n mod b)+1]-L2[1])
+function|return>         + ((c eq 1) select 0 else L3[(n mod c)+1]-L3[1])
+function|return>         : n in [0..a*b*c-1]
+function|return>     ];
+function> end function;
+> 
+> 
+> function Con(n,a,b,c)
+function>     L1 := (a eq 1) select [0,0] else Contribution(a,[b,c]);
+function>     L2 := (b eq 1) select [0,0] else Contribution(b,[a,c]);
+function>     L3 := (c eq 1) select [0,0] else Contribution(c,[a,b]);
+function> 
+function>     c1 := L1[(n mod a)+1]-L1[1];
+function>     c2 := L2[(n mod b)+1]-L2[1];
+function>     c3 := L3[(n mod c)+1]-L3[1];
+function> 
+function>     return c1+c2+c3;
+function> end function;
+> 
+> 
+> function LargestElement(vec)
+function>     maxElement := vec[1];
+function> 
+function>     for i in [2..#vec] do
+function|for>         if vec[i] ge maxElement then
+function|for|if>             maxElement := vec[i];
+function|for|if>         end if;
+function|for>     end for;
+function> 
+function>     return maxElement;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Exact multiplicity
+> //
+> // k = floor(N/sqrt(abc)) + 1
+> //
+> // Since
+> //
+> // floor(N/sqrt(pro))
+> //   = Isqrt(floor(N^2/pro)),
+> //
+> // this computes k using integer arithmetic only.
+> // ============================================================
+> 
+> function ExactK(N,pro)
+function>     return Isqrt((N^2) div pro)+1;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Rigorous finite search bound
+> //
+> // Original bound:
+> //
+> //   2*pro*C / (sqrt(pro)-sum)
+> //
+> // Rationalizing:
+> //
+> //   2*pro*C*(sqrt(pro)+sum)/(pro-sum^2).
+> //
+> // We replace sqrt(pro) in the numerator by its integer ceiling.
+> // This gives a rigorous UPPER bound, so no candidate can be lost.
+> //
+> // Requires pro > sum^2.
+> // ============================================================
+> 
+> function SafeSearchBound(pro,sum,C)
+function>     if pro le sum^2 then
+function|if>         error "This search requires abc > (a+b+c)^2.";
+function|if>     end if;
+function> 
+function>     s0 := Isqrt(pro);
+function>     sUpper := (s0^2 eq pro) select s0 else s0+1;
+function> 
+function>     QQ := Rationals();
+function>     upper := (QQ!(2*pro)*C*QQ!(sUpper+sum))/QQ!(pro-sum^2);
+function> 
+function>     return Ceiling(upper);
+function> end function;
+> 
+> // ============================================================
+> // Deficiency-0 search
+> // ============================================================
+> 
+> function Eff(a,b,c)
+function>     Q := Rationals();
+function>     pro := a*b*c;
+function>     sum := a+b+c;
+function> 
+function>     if pro le sum^2 then
+function|if>         error "Eff requires abc > (a+b+c)^2.";
+function|if>     end if;
+function> 
+function>     startk := 1;
+function>     startn := 1;
+function>     L := MakeCon(a,b,c);
+function>     maxCon := LargestElement(L);
+function>     MaxN := SafeSearchBound(pro,sum,maxCon);
+function> 
+function>     if MaxN lt 1 then
+function|if>         return [startn,startk];
+function|if>     end if;
+function> 
+function>     for m in [1..MaxN] do
+function|for>         k := ExactK(m,pro);
+function|for>         assert m^2-k^2*pro lt 0;
+function|for> 
+function|for>         hval := Q!1 + ((Q!(m^2+m*sum))/pro - Q!(k^2+k))/2;
+function|for> 
+function|for>         if hval + L[(m mod pro)+1] eq 1 then
+function|for|if>             startk := k;
+function|for|if>             startn := m;
+function|for|if>             break;
+function|for|if>         end if;
+function|for>     end for;
+function> 
+function>     return [startn,startk];
+function> end function;
+> 
+> 
+> // ============================================================
+> // Candidate generator for deficiency i
+> // ============================================================
+> 
+> function SEff(a,b,c,i)
+function>     Q := Rationals();
+function>     pro := a*b*c;
+function>     sum := a+b+c;
+function> 
+function>     if pro le sum^2 then
+function|if>         error "SEff requires abc > (a+b+c)^2.";
+function|if>     end if;
+function> 
+function>     startk := [];
+function>     startn := [];
+function>     L := MakeCon(a,b,c);
+function>     maxCon := LargestElement(L);
+function>     MaxN := SafeSearchBound(pro,sum,i+maxCon);
+function> 
+function>     if MaxN lt 1 then
+function|if>         return startk,startn;
+function|if>     end if;
+function> 
+function>     for n in [1..MaxN] do
+function|for>         k := ExactK(n,pro);
+function|for>         assert n^2-k^2*pro lt 0;
+function|for> 
+function|for>         hval := Q!1 + ((Q!(n^2+n*sum))/(Q!pro) - Q!(k^2+k))/2;
+function|for> 
+function|for>         if hval + L[(n mod pro)+1] eq 1-i then
+function|for|if>             Append(~startk,k);
+function|for|if>             Append(~startn,n);
+function|for|if>         end if;
+function|for>     end for;
+function> 
+function>     return startk,startn;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Weighted-degree exponent triples
+> // ============================================================
+> 
+> function ExponentTriples(N,wa,wb,wc)
+function>     triples := [];
+function> 
+function>     for aExp in [0..N div wa] do
+function|for>         rem1 := N-wa*aExp;
+function|for> 
+function|for>         for bExp in [0..rem1 div wb] do
+function|for|for>             rem2 := rem1-wb*bExp;
+function|for|for> 
+function|for|for>             if rem2 mod wc eq 0 then
+function|for|for|if>                 Append(~triples,<aExp,bExp,rem2 div wc>);
+function|for|for|if>             end if;
+function|for|for>         end for;
+function|for>     end for;
+function> 
+function>     return triples;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Derivative triples
+> //
+> // Only derivatives of total order d-1 are required here.
+> //
+> // In the supported range:
+> //
+> //     abc > (a+b+c)^2,
+> //
+> // hence max(a,b,c) < sqrt(abc).
+> //
+> // For d = floor(N/sqrt(abc))+1, weighted Euler recursion
+> // shows that vanishing of all derivatives of order d-1
+> // forces vanishing of all lower-order derivatives.
+> // Thus these rows impose multiplicity at least d.
+> // ============================================================
+> 
+> function RowTriples(d)
+function>     rows := [];
+function> 
+function>     for u in [0..d-1] do
+function|for>         for v in [0..d-1-u] do
+function|for|for>             w := d-1-u-v;
+function|for|for>             Append(~rows,<u,v,w>);
+function|for|for>         end for;
+function|for>     end for;
+function> 
+function>     return rows;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Modular Hasse-derivative rank test
+> //
+> // We omit the factor u!v!w!.
+> //
+> // This merely rescales each row over Q, so it does not change
+> // the Q-kernel or Q-rank. The resulting Hasse-derivative matrix
+> // has much smaller entries.
+> //
+> // Full column rank modulo ANY prime certifies full column rank
+> // over Q.
+> // ============================================================
+> 
+> function ModularFullColumnRank(rowTriples,cols,p)
+function>     Fp := GF(p);
+function>     r := #rowTriples;
+function>     n := #cols;
+function>     Xp := ZeroMatrix(Fp,r,n);
+function> 
+function>     for j in [1..r] do
+function|for>         u := rowTriples[j][1];
+function|for>         v := rowTriples[j][2];
+function|for>         w := rowTriples[j][3];
+function|for> 
+function|for>         for col in [1..n] do
+function|for|for>             Aexp := cols[col][1];
+function|for|for>             Bexp := cols[col][2];
+function|for|for>             Cexp := cols[col][3];
+function|for|for> 
+function|for|for>             Xp[j,col] :=
+function|for|for>                 (Fp!Binomial(Aexp,u))
+function|for|for>                 * (Fp!Binomial(Bexp,v))
+function|for|for>                 * (Fp!Binomial(Cexp,w));
+function|for|for>         end for;
+function|for>     end for;
+function> 
+function>     rk := Rank(Xp);
+function>     return rk eq n,rk;
+function> end function;
+> 
+> 
+> // ============================================================
+> // Exact integer rank of Hasse-derivative matrix
+> // ============================================================
+> 
+> function ExactMatrixRank(rowTriples,cols)
+function>     r := #rowTriples;
+function>     n := #cols;
+function>     X := ZeroMatrix(Integers(),r,n);
+function> 
+function>     for j in [1..r] do
+function|for>         u := rowTriples[j][1];
+function|for>         v := rowTriples[j][2];
+function|for>         w := rowTriples[j][3];
+function|for> 
+function|for>         for col in [1..n] do
+function|for|for>             Aexp := cols[col][1];
+function|for|for>             Bexp := cols[col][2];
+function|for|for>             Cexp := cols[col][3];
+function|for|for> 
+function|for|for>             X[j,col] :=
+function|for|for>                 Binomial(Aexp,u)
+function|for|for>                 * Binomial(Bexp,v)
+function|for|for>                 * Binomial(Cexp,w);
+function|for|for>         end for;
+function|for>     end for;
+function> 
+function>     return Rank(X);
+function> end function;
+> 
+> 
+> // ============================================================
+> // Desired curves
+> // ============================================================
+> function DesiredCurves(a,b,c,def_i)
+function>    printf "WPS: P%o\n------------------\n",[a,b,c];
+function> 
+function>    pro := a*b*c; sum := a+b+c;
+function>    if pro le sum^2 then
+function|if>       error "DesiredCurves requires abc > (a+b+c)^2.";
+function|if>    end if;
+function> 
+function>    Pair := Eff(a,b,c);
+function>    if &*Pair ne 1 then
+function|if>       printf "Output of Eff function: %o\n",Pair;
+function|if>       printf "================================================= i=%o\n",def_i;
+function|if>       return false;
+function|if>    end if;
+function> 
+function>    M,N := SEff(a,b,c,def_i);
+function>    if #N eq 0 then
+function|if>       printf "================================================= i=%o\n",def_i;
+function|if>       return false;
+function|if>    end if;
+function> 
+function>    foundAny := false;
+function> 
+function>    for idx in [1..#N] do
+function|for>       d := M[idx]; Ndeg := N[idx];
+function|for>       rowTriples := RowTriples(d);
+function|for>       cols := ExponentTriples(Ndeg,a,b,c);
+function|for>       r := #rowTriples; n := #cols;
+function|for> 
+function|for>       if n eq 0 then
+function|for|if>          continue;
+function|for|if>       end if;
+function|for> 
+function|for>       // More columns than equations => nonzero kernel automatically.
+function|for>       if n gt r then
+function|for|if>          printf "Desired Curve may appear for Deficiency: %o, k=%o, n=%o\n",
+function|for|if|printf>                 def_i,d,Ndeg;
+function|for|if>          foundAny := true;
+function|for|if>          continue;
+function|for|if>       end if;
+function|for> 
+function|for>       // Modular pretest: full column rank modulo one prime
+function|for>       // certifies zero kernel over Q.
+function|for>       certifiedNoCurve := false;
+function|for>       for p in MODULAR_PRIMES do
+function|for|for>          fullRank,rk := ModularFullColumnRank(rowTriples,cols,p);
+function|for|for>          if fullRank then
+function|for|for|if>             certifiedNoCurve := true;
+function|for|for|if>             break;
+function|for|for|if>          end if;
+function|for|for>       end for;
+function|for> 
+function|for>       if certifiedNoCurve then
+function|for|if>          continue;
+function|for|if>       end if;
+function|for> 
+function|for>       // Only inconclusive modular cases reach exact rank.
+function|for>       exactRank := ExactMatrixRank(rowTriples,cols);
+function|for>       if n-exactRank ge 1 then
+function|for|if>          printf "Desired Curve may appear for Deficiency: %o, k=%o, n=%o\n",
+function|for|if|printf>                 def_i,d,Ndeg;
+function|for|if>          foundAny := true;
+function|for|if>       end if;
+function|for>    end for;
+function> 
+function>    printf "================================================= i=%o\n",def_i;
+function>    return foundAny;
+function> end function;
+> a,b,c:= Explode([9,10,13]);
+> for i in [1..7] do
+for> DesiredCurves(a,b,c,i);
+for> end for;
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=1
+false
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=2
+false
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=3
+false
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=4
+false
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=5
+false
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=6
+false
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=7
+false
+
+> for i in [2,3,8,9,10] do
+for> time DesiredCurves(a,b,c,i);
+for> end for;
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=2
+false
+Time: 5.230
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=3
+false
+Time: 84.110
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=8
+false
+Time: 13066.880
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=9
+false
+Time: 24149.960
+WPS: P[ 9, 10, 13 ]
+------------------
+================================================= i=10
+false
+Time: 48702.010

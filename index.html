@@ -132,9 +132,57 @@
   font-size: 0.8rem;
   transition: background 0.2s ease;
 }
+
 .download-btn:hover {
   background: #0b4f7c;
 }
+.download-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+.download-menu summary {
+  list-style: none;
+  cursor: pointer;
+  background: #0e639c;
+  color: #fff;
+  padding: 0.35rem 0.7rem;
+  border-radius: 0.5rem;
+  font-size: 0.8rem;
+  user-select: none;
+}
+.download-menu summary::-webkit-details-marker {
+  display: none;
+}
+.download-menu summary:hover,
+.download-menu[open] summary {
+  background: #0b4f7c;
+}
+.download-menu-options {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 50;
+  min-width: 260px;
+  background: #fff;
+  border: 1px solid #d8dde3;
+  border-radius: 0.6rem;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  padding: 0.35rem;
+}
+.download-menu-options a {
+  display: block;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.45rem;
+  color: #0e639c;
+  text-decoration: none;
+  font-size: 0.78rem;
+  line-height: 1.25;
+  white-space: normal;
+}
+.download-menu-options a:hover {
+  background: #eef6fb;
+}
+
 .small {
   font-size: 0.75rem;
 }
@@ -292,7 +340,14 @@
           MAGMA program for higher deficiency curves
         </div>
       </div>
-      <a class="download-btn" href="Searching program for deficiency 1  and higher.txt" download>Download</a>
+      <details class="download-menu">
+  <summary>Download</summary>
+  <div class="download-menu-options">
+    <a href="Searching program for deficiency 1 and higher.txt" download>Deficiency 1 and higher search program</a>
+    <a href="Modular_rank_skipping cases.m" download>For the skipping cases</a>
+    <a href="P[9,10,13]-1-10.txt" download>Searching Program for P(9,10,13)</a>
+  </div>
+</details>
     </div>
 </div>
 </section>

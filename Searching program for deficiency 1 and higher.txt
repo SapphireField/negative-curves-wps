@@ -272,12 +272,5 @@ a,b,c:= Explode(I);
 DesiredCurves(a,b,c,3);
 end for;
 
-// The following programs are associated with P(9,10,13)
-
-a,b,c:= Explode([9,10,13]);
-for i in [1..7] do
-DesiredCurves(a,b,c,i);
-end for;
-
-
+//For the skipping cases, an extra round of checks has been carried out. See file For the skipping cases on the website.
 

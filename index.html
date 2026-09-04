@@ -187,6 +187,64 @@
   font-size: 0.75rem;
 }
 
+
+.resource-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  margin-top: 0.55rem;
+}
+.resource-links a,
+.resource-links summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.9rem;
+  padding: 0.32rem 0.58rem;
+  border-radius: 0.5rem;
+  background: #0e639c;
+  color: #fff;
+  text-decoration: none;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  cursor: pointer;
+  border: none;
+  list-style: none;
+}
+.resource-links a:hover,
+.resource-links summary:hover {
+  background: #0b4f7c;
+}
+.resource-links summary::-webkit-details-marker {
+  display: none;
+}
+.resource-submenu {
+  position: relative;
+}
+.resource-submenu-options {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.3rem);
+  z-index: 50;
+  min-width: 220px;
+  padding: 0.32rem;
+  background: #fff;
+  border: 1px solid #d8dde3;
+  border-radius: 0.55rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+}
+.resource-submenu-options a {
+  display: block;
+  background: transparent;
+  color: #0e639c;
+  padding: 0.48rem 0.55rem;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+}
+.resource-submenu-options a:hover {
+  background: #eef6fb;
+}
+
 </style>
 </head>
 <body>
@@ -333,21 +391,49 @@
       <a class="download-btn" href="Searching program deficiency 0.txt" download>Download</a>
     </div>
 
-    <div class="download-item">
+    <div class="download-item" style="display:block;">
       <div>
-        <strong>Deficiency 1 (and higher) search program</strong>
+        <strong>Deficiency 1 (and higher): programs and data</strong>
         <div class="muted small">
-          MAGMA program for higher deficiency curves
+          Search programs, output data, and verification files
         </div>
       </div>
-      <details class="download-menu">
-  <summary>Download</summary>
-  <div class="download-menu-options">
-    <a href="Searching program for deficiency 1 and higher.txt" download>Deficiency 1 and higher search program</a>
-    <a href="Modular_rank_skipping cases.m" download>For the skipping cases</a>
-    <a href="P[9,10,13]-1-10.txt" download>Searching Program for P(9,10,13)</a>
-  </div>
-</details>
+
+      <div class="resource-links">
+        <a href="Searching program for deficiency 1 and higher.txt" download
+           title="General search program for deficiency 1 or higher">
+          General search
+        </a>
+
+        <details class="resource-submenu">
+          <summary title="Output files for deficiencies 1, 2 and 3">Outputs 1–3</summary>
+          <div class="resource-submenu-options">
+            <a href="Def1.txt" download>Deficiency 1 output</a>
+            <a href="Def2.txt" download>Deficiency 2 output</a>
+            <a href="Def3.txt" download>Deficiency 3 output</a>
+          </div>
+        </details>
+
+        <a href="Modular_rank_skipping cases.m" download
+           title="Program for the skipping cases">
+          Skipping cases
+        </a>
+
+        <a href="To check the irreducibility of deficiency 1 curves.txt" download
+           title="Irreducibility checks associated with Theorem 4.4">
+          Irreducibility — Thm. 4.4
+        </a>
+
+        <a href="For Remark 4.4.txt" download
+           title="Translation to Laurent polynomials associated with Remark 4.5">
+          Laurent translation — Rem. 4.5
+        </a>
+
+        <a href="P[9,10,13]-1-10.txt" download
+           title="Program associated with X(9,10,13) for deficiencies 1–10">
+          X(9,10,13) — deficiencies 1–10
+        </a>
+      </div>
     </div>
 </div>
 </section>

@@ -1,0 +1,1142 @@
+///////////////////////////////////////////////////////////////////////////
+// Hasse-jet multiplicity test for a general weighted projective plane
+//
+//     P(q1,q2,q3) = Proj k[x1,x2,x3],  deg(xi)=qi,
+//
+// over an arbitrary field K, at the torus point P=(1,1,1).
+//
+// The routines accept the weights as a sequence
+//
+//     wts := [q1,q2,q3];
+//
+// and test weighted homogeneous polynomials of degree n for multiplicity
+// at least k.  They use a saturated Z-basis m1,m2 of
+//
+//     M = {d in Z^3 : q1*d1 + q2*d2 + q3*d3 = 0}.
+//
+// If U=chi^m1 and V=chi^m2, and a monomial divided by a reference
+// monomial is U^A*V^B, its (i,j)-th Hasse coefficient at (1,1) is
+//
+//     binomial(A,i)*binomial(B,j).
+//
+// The rows with i+j<k therefore impose multiplicity at least k.
+//
+// The main routines work over any field, including Q and finite fields.
+// Convenience wrappers are supplied both for characteristic zero and for
+// prime characteristic p.
+//
+// Assumptions enforced below:
+//   * q1,q2,q3 are positive integers;
+//   * n,k are nonnegative integers;
+//   * in the old finite-field interface, p is prime and does not divide
+//     q1*q2*q3.
+//
+// Pairwise coprimality of the weights is NOT required by the code.  Their
+// common gcd is removed only when constructing the degree-zero lattice;
+// weighted degrees are still computed using the weights supplied by the user.
+///////////////////////////////////////////////////////////////////////////
+
+
+///////////////////////////////////////////////////////////////////////////
+// Basic validation.
+///////////////////////////////////////////////////////////////////////////
+
+procedure CheckWeightsWeightedP2(wts)
+    error if #wts ne 3,
+        "The weights must be a sequence of length 3.";
+
+    Z := Integers();
+    ww := [Z!wts[i] : i in [1..3]];
+
+    error if not (&and[ww[i] gt 0 : i in [1..3]]),
+        "All three weights must be positive integers.";
+end procedure;
+
+
+procedure CheckDegreeMultiplicityInputWeightedP2(wts, n, k)
+    CheckWeightsWeightedP2(wts);
+
+    error if n lt 0,
+        "The weighted degree n must be nonnegative.";
+
+    error if k lt 0,
+        "The requested multiplicity k must be nonnegative.";
+
+end procedure;
+
+
+procedure CheckJetInputWeightedP2(wts, n, k, p)
+    CheckDegreeMultiplicityInputWeightedP2(wts,n,k);
+
+    error if not IsPrime(p),
+        "p must be prime.";
+
+    error if not (&and[(wts[i] mod p) ne 0 : i in [1..3]]),
+        "The characteristic p must not divide any of the three weights.";
+end procedure;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Generalized binomial coefficient for N in Z and r >= 0.
+// This definition also works for negative N.
+///////////////////////////////////////////////////////////////////////////
+
+function GenBinomInt(N, r)
+    error if r lt 0,
+        "The lower binomial index must be nonnegative.";
+
+    if r eq 0 then
+        return 1;
+    end if;
+
+    Z := Integers();
+    num := Z!1;
+
+    for j in [0..r-1] do
+        num *:= ((Z!N)-j);
+    end for;
+
+    return ExactQuotient(num, Factorial(r));
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Return [binomial(N,0),...,binomial(N,k-1)] over Z.
+// The recurrence makes this linear in k, including for negative N.
+///////////////////////////////////////////////////////////////////////////
+
+function GenBinomListInt(N, k)
+    error if k lt 0,
+        "The list length k must be nonnegative.";
+
+    if k eq 0 then
+        return [];
+    end if;
+
+    Z := Integers();
+    values := [Z!1];
+    current := Z!1;
+
+    if k gt 1 then
+        for r in [0..k-2] do
+            current := ExactQuotient(current*((Z!N)-r),r+1);
+            Append(~values,current);
+        end for;
+    end if;
+
+    return values;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Nearest integer to num/den, where den>0.
+// In a half-integer tie this chooses the integer away from zero.
+///////////////////////////////////////////////////////////////////////////
+
+function NearestIntegerQuotient(num, den)
+    error if den le 0,
+        "The denominator must be positive.";
+
+    if num ge 0 then
+        return (2*num + den) div (2*den);
+    end if;
+
+    return -NearestIntegerQuotient(-num, den);
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Construct a saturated Z-basis of the degree-zero lattice.
+//
+// First divide the weights by their common gcd, obtaining (a,b,c) with
+// gcd(a,b,c)=1. Put g=gcd(a,b), and choose r,s with
+//
+//     r*a + s*b = g.
+//
+// Then
+//
+//     m1 = (b/g,-a/g,0),
+//     m2 = (-c*r,-c*s,g)
+//
+// form a Z-basis of the kernel. We replace m2 by m2+t*m1, choosing t to
+// make its first two coordinates small. This changes neither the lattice
+// nor the fact that the two vectors form a basis.
+///////////////////////////////////////////////////////////////////////////
+
+function DegreeZeroLatticeBasisWeightedP2(wts)
+    CheckWeightsWeightedP2(wts);
+
+    Z := Integers();
+    q1 := Z!wts[1];
+    q2 := Z!wts[2];
+    q3 := Z!wts[3];
+
+    common := GCD(GCD(q1,q2),q3);
+    a := ExactQuotient(q1,common);
+    b := ExactQuotient(q2,common);
+    c := ExactQuotient(q3,common);
+
+    g, r, s := XGCD(a,b);
+
+    m1 := <ExactQuotient(b,g), -ExactQuotient(a,g), 0>;
+    m2 := <-c*r, -c*s, g>;
+
+    // Reduce m2 modulo Z*m1.  This is useful when XGCD returns large
+    // Bezout coefficients, since smaller torus exponents make the jet
+    // construction faster.
+    dot12 := m1[1]*m2[1] + m1[2]*m2[2];
+    norm1 := m1[1]^2 + m1[2]^2;
+    t := NearestIntegerQuotient(-dot12, norm1);
+
+    m2 := <m2[1] + t*m1[1],
+           m2[2] + t*m1[2],
+           m2[3]>;
+
+    // Safety checks.
+    error if a*m1[1] + b*m1[2] + c*m1[3] ne 0,
+        "Internal error while constructing the first lattice vector.";
+    error if a*m2[1] + b*m2[2] + c*m2[3] ne 0,
+        "Internal error while constructing the second lattice vector.";
+
+    return m1, m2;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Express d in the basis m1,m2 produced above:
+//
+//     d = A*m1 + B*m2.
+//
+// The third coordinates give B immediately, and the first coordinates
+// then give A.
+///////////////////////////////////////////////////////////////////////////
+
+function CoordinatesInGivenTorusBasisWeightedP2(d, m1, m2)
+    error if #d ne 3,
+        "The exponent difference must have length 3.";
+    error if not (m1[3] eq 0 and m2[3] gt 0),
+        "The supplied basis does not have the expected triangular form.";
+    error if d[3] mod m2[3] ne 0,
+        "The exponent difference is not in the lattice spanned by the basis.";
+
+    B := ExactQuotient(d[3],m2[3]);
+    numeratorA := d[1] - B*m2[1];
+
+    error if numeratorA mod m1[1] ne 0,
+        "The exponent difference is not in the lattice spanned by the basis.";
+
+    A := ExactQuotient(numeratorA,m1[1]);
+
+    error if not (d[1] eq A*m1[1] + B*m2[1]
+        and d[2] eq A*m1[2] + B*m2[2]
+        and d[3] eq A*m1[3] + B*m2[3]),
+        "Internal lattice-coordinate check failed.";
+
+    return A, B;
+end function;
+
+
+function CoordinatesInTorusBasisWeightedP2(wts, d)
+    m1, m2 := DegreeZeroLatticeBasisWeightedP2(wts);
+    return CoordinatesInGivenTorusBasisWeightedP2(d,m1,m2);
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// List all exponent triples e=(e1,e2,e3) satisfying
+//
+//     q1*e1 + q2*e2 + q3*e3 = n,   ei >= 0.
+///////////////////////////////////////////////////////////////////////////
+
+function WeightedMonomialExponents(wts, n)
+    CheckWeightsWeightedP2(wts);
+    error if n lt 0,
+        "The weighted degree n must be nonnegative.";
+
+    Z := Integers();
+    q1 := Z!wts[1];
+    q2 := Z!wts[2];
+    q3 := Z!wts[3];
+    nZ := Z!n;
+
+    exps := [];
+
+    for e1 in [0..nZ div q1] do
+        for e2 in [0..(nZ-q1*e1) div q2] do
+            rem := nZ - q1*e1 - q2*e2;
+
+            if rem mod q3 eq 0 then
+                e3 := ExactQuotient(rem,q3);
+                Append(~exps,<e1,e2,e3>);
+            end if;
+        end for;
+    end for;
+
+    return exps;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Toric coordinates of the degree-n monomials.
+//
+// The first weighted monomial is used as reference.  If mon-ref=A*m1+B*m2,
+// then mon/ref is the torus character u^A*v^B.  Thus points[ell]=<A,B>
+// is the lattice point corresponding to mons[ell].
+//
+// Changing the reference translates every point by the same lattice vector.
+///////////////////////////////////////////////////////////////////////////
+
+function ToricMonomialDataWeightedP2(wts, n)
+    CheckWeightsWeightedP2(wts);
+    error if n lt 0,
+        "The weighted degree n must be nonnegative.";
+
+    mons := WeightedMonomialExponents(wts,n);
+    m1, m2 := DegreeZeroLatticeBasisWeightedP2(wts);
+
+    if #mons eq 0 then
+        return [], mons, <0,0,0>, m1, m2;
+    end if;
+
+    ref := mons[1];
+    points := [];
+
+    for mon in mons do
+        d := <mon[1]-ref[1],
+              mon[2]-ref[2],
+              mon[3]-ref[3]>;
+        A, B := CoordinatesInGivenTorusBasisWeightedP2(d,m1,m2);
+        Append(~points,<A,B>);
+    end for;
+
+    return points, mons, ref, m1, m2;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Translate a finite set of lattice points so both coordinate minima are 0.
+// If shift=<amin,bmin>, then
+//
+//     shiftedPoint = originalPoint-shift.
+//
+// At the level of sections, the translated ordinary polynomial is the raw
+// Laurent section multiplied by u^(-amin)*v^(-bmin).
+///////////////////////////////////////////////////////////////////////////
+
+function ShiftToricPointsToNonnegativeQuadrant(points)
+    if #points eq 0 then
+        return [], <0,0>;
+    end if;
+
+    amin := Minimum([point[1] : point in points]);
+    bmin := Minimum([point[2] : point in points]);
+    shift := <amin,bmin>;
+    shiftedPoints :=
+        [<point[1]-amin,point[2]-bmin> : point in points];
+
+    return shiftedPoints, shift;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Build the Hasse jet matrix J_{wts,n,k,K} over an arbitrary field K.
+//
+// Rows:    pairs (i,j) with i+j<k.
+// Columns: weighted degree-n monomials.
+// Entry:   binomial(A_l,i)*binomial(B_l,j), coerced into K.
+//
+// The kernel is H^0(O(nH-kE)).
+///////////////////////////////////////////////////////////////////////////
+
+function JetMatrixWeightedP2OverField(wts, n, k, K)
+    CheckDegreeMultiplicityInputWeightedP2(wts,n,k);
+    error if not IsField(K),
+        "The coefficient ring K must be a field.";
+
+    points, mons, ref, m1, m2 := ToricMonomialDataWeightedP2(wts,n);
+    Ncols := #mons;
+
+    rows := [];
+    if k gt 0 then
+        for total in [0..k-1] do
+            for i in [0..total] do
+                Append(~rows,<i,total-i>);
+            end for;
+        end for;
+    end if;
+
+    if Ncols eq 0 then
+        return ZeroMatrix(K,#rows,0), mons, rows;
+    end if;
+
+    if k eq 0 then
+        return ZeroMatrix(K,0,Ncols), mons, rows;
+    end if;
+
+    // Cache all one-variable Hasse coefficients.  The original nested
+    // computation evaluated the same generalized binomials many times.
+    binA := [];
+    binB := [];
+
+    for point in points do
+        listA := [K!aa : aa in GenBinomListInt(point[1],k)];
+        listB := [K!bb : bb in GenBinomListInt(point[2],k)];
+
+        Append(~binA,listA);
+        Append(~binB,listB);
+    end for;
+
+    entries := [];
+
+    for row in rows do
+        i := row[1];
+        j := row[2];
+
+        for ell in [1..Ncols] do
+            Append(~entries,binA[ell][i+1]*binB[ell][j+1]);
+        end for;
+    end for;
+
+    return Matrix(K,#rows,Ncols,entries), mons, rows;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Convenience wrappers for characteristic zero and characteristic p.
+///////////////////////////////////////////////////////////////////////////
+
+function JetMatrixWeightedP2Char0(wts, n, k)
+    return JetMatrixWeightedP2OverField(wts,n,k,Rationals());
+end function;
+
+
+function JetMatrixWeightedP2(wts, n, k, p)
+    CheckJetInputWeightedP2(wts,n,k,p);
+    return JetMatrixWeightedP2OverField(wts,n,k,GF(p));
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Dimension of H^0(Bl_P P(q1,q2,q3), O(nH-kE)).
+// Returns h0, rank(J), number of monomials, number of jet conditions.
+///////////////////////////////////////////////////////////////////////////
+
+function H0DimensionWeightedP2OverField(wts, n, k, K)
+    J, mons, rows := JetMatrixWeightedP2OverField(wts,n,k,K);
+    r := Rank(J);
+    h0 := #mons-r;
+
+    return h0, r, #mons, #rows;
+end function;
+
+
+function H0DimensionWeightedP2Char0(wts, n, k)
+    return H0DimensionWeightedP2OverField(wts,n,k,Rationals());
+end function;
+
+
+function H0DimensionWeightedP2(wts, n, k, p)
+    CheckJetInputWeightedP2(wts,n,k,p);
+    return H0DimensionWeightedP2OverField(wts,n,k,GF(p));
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Return a basis of sections as weighted homogeneous polynomials in
+// x1,x2,x3 over an arbitrary field K.
+///////////////////////////////////////////////////////////////////////////
+
+function SectionsWeightedP2OverField(wts, n, k, K)
+    CheckDegreeMultiplicityInputWeightedP2(wts,n,k);
+    error if not IsField(K),
+        "The coefficient ring K must be a field.";
+
+    P<x1,x2,x3> := PolynomialRing(K,wts);
+    J, mons, rows := JetMatrixWeightedP2OverField(wts,n,k,K);
+
+    if #mons eq 0 then
+        return [], mons, J;
+    end if;
+
+    // Magma uses row vectors in Nullspace(M). NullspaceOfTranspose(J)
+    // therefore solves J*c=0 without explicitly constructing Transpose(J).
+    NS := NullspaceOfTranspose(J);
+    sections := [];
+
+    for v in Basis(NS) do
+        f := P!0;
+
+        for ell in [1..#mons] do
+            e1 := mons[ell][1];
+            e2 := mons[ell][2];
+            e3 := mons[ell][3];
+            f +:= v[ell]*x1^e1*x2^e2*x3^e3;
+        end for;
+
+        Append(~sections,f);
+    end for;
+
+    return sections, mons, J;
+end function;
+
+
+function SectionsWeightedP2Char0(wts, n, k)
+    return SectionsWeightedP2OverField(wts,n,k,Rationals());
+end function;
+
+
+function SectionsWeightedP2(wts, n, k, p)
+    CheckJetInputWeightedP2(wts,n,k,p);
+    return SectionsWeightedP2OverField(wts,n,k,GF(p));
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Return the same kernel sections in raw torus-character coordinates.
+//
+// The output sections lie in the fraction field K(u,v), but every term is
+// a Laurent monomial u^A*v^B.  The parallel sequences points and mons record
+// exactly which weighted monomial corresponds to which lattice point.
+///////////////////////////////////////////////////////////////////////////
+
+function ToricLaurentSectionsWeightedP2OverField(wts, n, k, K)
+    CheckDegreeMultiplicityInputWeightedP2(wts,n,k);
+    error if not IsField(K),
+        "The coefficient ring K must be a field.";
+
+    J, mons, rows := JetMatrixWeightedP2OverField(wts,n,k,K);
+    points, mons2, ref, m1, m2 := ToricMonomialDataWeightedP2(wts,n);
+
+    T<u,v> := PolynomialRing(K,2);
+    F := FieldOfFractions(T);
+    uu := F!(T.1);
+    vv := F!(T.2);
+
+    if #mons eq 0 then
+        return [], points, mons, J;
+    end if;
+
+    NS := NullspaceOfTranspose(J);
+    sections := [];
+
+    for vec in Basis(NS) do
+        g := F!0;
+
+        for ell in [1..#mons] do
+            A := points[ell][1];
+            B := points[ell][2];
+            g +:= vec[ell]*uu^A*vv^B;
+        end for;
+
+        Append(~sections,g);
+    end for;
+
+    return sections, points, mons, J;
+end function;
+
+
+function ToricLaurentSectionsWeightedP2Char0(wts, n, k)
+    return ToricLaurentSectionsWeightedP2OverField(
+        wts,n,k,Rationals());
+end function;
+
+
+function ToricLaurentSectionsWeightedP2(wts, n, k, p)
+    CheckJetInputWeightedP2(wts,n,k,p);
+    return ToricLaurentSectionsWeightedP2OverField(wts,n,k,GF(p));
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Translate the lattice points into the nonnegative quadrant and return
+// ordinary polynomials in K[u,v].
+//
+// If shift=<amin,bmin> and gRaw is a raw Laurent section, the corresponding
+// returned ordinary polynomial is
+//
+//     gPolynomial = u^(-amin)*v^(-bmin)*gRaw.
+///////////////////////////////////////////////////////////////////////////
+
+function ToricPolynomialSectionsWeightedP2OverField(wts, n, k, K)
+    CheckDegreeMultiplicityInputWeightedP2(wts,n,k);
+    error if not IsField(K),
+        "The coefficient ring K must be a field.";
+
+    J, mons, rows := JetMatrixWeightedP2OverField(wts,n,k,K);
+    points, mons2, ref, m1, m2 := ToricMonomialDataWeightedP2(wts,n);
+    shiftedPoints, shift :=
+        ShiftToricPointsToNonnegativeQuadrant(points);
+
+    T<u,v> := PolynomialRing(K,2);
+
+    if #mons eq 0 then
+        return [], shiftedPoints, shift, mons, J;
+    end if;
+
+    NS := NullspaceOfTranspose(J);
+    sections := [];
+
+    for vec in Basis(NS) do
+        g := T!0;
+
+        for ell in [1..#mons] do
+            A := shiftedPoints[ell][1];
+            B := shiftedPoints[ell][2];
+            g +:= vec[ell]*u^A*v^B;
+        end for;
+
+        Append(~sections,g);
+    end for;
+
+    return sections, shiftedPoints, shift, mons, J;
+end function;
+
+
+function ToricPolynomialSectionsWeightedP2Char0(wts, n, k)
+    return ToricPolynomialSectionsWeightedP2OverField(
+        wts,n,k,Rationals());
+end function;
+
+
+function ToricPolynomialSectionsWeightedP2(wts, n, k, p)
+    CheckJetInputWeightedP2(wts,n,k,p);
+    return ToricPolynomialSectionsWeightedP2OverField(wts,n,k,GF(p));
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Convert one explicit weighted homogeneous polynomial to raw Laurent
+// torus coordinates.  The output is g=sum c_(A,B) u^A*v^B.
+///////////////////////////////////////////////////////////////////////////
+
+function WeightedPolynomialToToricLaurent(f, wts, n)
+    CheckWeightsWeightedP2(wts);
+    error if n lt 0,
+        "The weighted degree n must be nonnegative.";
+
+    P := Parent(f);
+    error if Rank(P) ne 3,
+        "The polynomial must belong to a polynomial ring in three variables.";
+    error if not IsField(BaseRing(P)),
+        "The coefficient ring of f must be a field.";
+
+    for mon in Monomials(f) do
+        ee := Exponents(mon);
+        error if wts[1]*ee[1] + wts[2]*ee[2] + wts[3]*ee[3] ne n,
+            "The polynomial f is not weighted homogeneous of degree n.";
+    end for;
+
+    K := BaseRing(P);
+    points, mons, ref, m1, m2 := ToricMonomialDataWeightedP2(wts,n);
+    T<u,v> := PolynomialRing(K,2);
+    F := FieldOfFractions(T);
+    uu := F!(T.1);
+    vv := F!(T.2);
+    g := F!0;
+
+    for ell in [1..#mons] do
+        mon := mons[ell];
+        weightedMonomial :=
+            P.1^mon[1]*P.2^mon[2]*P.3^mon[3];
+        coeff := MonomialCoefficient(f,weightedMonomial);
+        A := points[ell][1];
+        B := points[ell][2];
+        g +:= coeff*uu^A*vv^B;
+    end for;
+
+    return g, points, mons;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Extract the nonzero toric support and coefficients of f and also return
+// the resulting Laurent polynomial
+//
+//     f/reference = sum coefficients[i]
+//                         * u^support[i][1] * v^support[i][2].
+//
+// The Laurent polynomial is represented as an element of the fraction
+// field K(u,v), so negative exponents are allowed.
+///////////////////////////////////////////////////////////////////////////
+
+function ToricSupportOfPolynomial(f, wts, n)
+    CheckWeightsWeightedP2(wts);
+    error if n lt 0,
+        "The weighted degree n must be nonnegative.";
+
+    P := Parent(f);
+    error if Rank(P) ne 3,
+        "The polynomial must belong to a polynomial ring in three variables.";
+    error if not IsField(BaseRing(P)),
+        "The coefficient ring of f must be a field.";
+
+    // Verify that every nonzero term of f has weighted degree n.
+    for mon in Monomials(f) do
+        ee := Exponents(mon);
+        error if wts[1]*ee[1] + wts[2]*ee[2] + wts[3]*ee[3] ne n,
+            "The polynomial f is not weighted homogeneous of degree n.";
+    end for;
+
+    points, mons, ref, m1, m2 :=
+        ToricMonomialDataWeightedP2(wts,n);
+
+    K := BaseRing(P);
+    T<u,v> := PolynomialRing(K,2);
+    L := FieldOfFractions(T);
+    uu := L!(T.1);
+    vv := L!(T.2);
+
+    support := [];
+    coefficients := [];
+    laurentPolynomial := L!0;
+
+    for ell in [1..#mons] do
+        e := mons[ell];
+        monomial := P.1^e[1] * P.2^e[2] * P.3^e[3];
+        coefficient := MonomialCoefficient(f,monomial);
+
+        if coefficient ne 0 then
+            point := points[ell];
+            Append(~support,point);
+            Append(~coefficients,coefficient);
+
+            laurentPolynomial +:=
+                coefficient * uu^point[1] * vv^point[2];
+        end if;
+    end for;
+
+    return support, coefficients, ref, m1, m2, laurentPolynomial;
+end function;
+
+
+///////////////////////////////////////////////////////////////////////////
+// Convert one explicit weighted homogeneous polynomial to an ordinary
+// polynomial in u,v after translating all lattice points into the
+// nonnegative quadrant.
+///////////////////////////////////////////////////////////////////////////
+
+function WeightedPolynomialToToricPolynomial(f, wts, n)
+    CheckWeightsWeightedP2(wts);
+    error if n lt 0,
+        "The weighted degree n must be nonnegative.";
+
+    P := Parent(f);
+    error if Rank(P) ne 3,
+        "The polynomial must belong to a polynomial ring in three variables.";
+    error if not IsField(BaseRing(P)),
+        "The coefficient ring of f must be a field.";
+
+    for mon in Monomials(f) do
+        ee := Exponents(mon);
+        error if wts[1]*ee[1] + wts[2]*ee[2] + wts[3]*ee[3] ne n,
+            "The polynomial f is not weighted homogeneous of degree n.";
+    end for;
+
+    K := BaseRing(P);
+    points, mons, ref, m1, m2 := ToricMonomialDataWeightedP2(wts,n);
+    shiftedPoints, shift :=
+        ShiftToricPointsToNonnegativeQuadrant(points);
+    T<u,v> := PolynomialRing(K,2);
+    g := T!0;
+
+    for ell in [1..#mons] do
+        mon := mons[ell];
+        weightedMonomial :=
+            P.1^mon[1]*P.2^mon[2]*P.3^mon[3];
+        coeff := MonomialCoefficient(f,weightedMonomial);
+        A := shiftedPoints[ell][1];
+        B := shiftedPoints[ell][2];
+        g +:= coeff*u^A*v^B;
+    end for;
+
+    return g, shiftedPoints, shift, mons;
+end function;
+
+
+
+// The following prepares the magmaprogram to be ready.
+SetIgnorePrompt(true);
+Q:=Rationals();
+R<t>:=PolynomialRing(Q);
+K:=FieldOfFractions(R);
+S<s>:=PowerSeriesRing(Q,50);
+
+
+
+//this is a function that calculates the contribution from the cyclic quotient singularities to Riemann-Roch. 
+//F.eks. contribution from a singularity of type 1/r(a,b) can be calculated by Contribution(r,[a,b]).
+//Output of this function is sigma_n, (n=0,...r-1.) (as given in the formular in (2.1)) 
+
+
+function Contribution(r, LL)
+QQ:=Rationals();
+Poly<t>:=PolynomialRing(QQ);
+L:=[Integers()|i: i in LL]; 
+n:=#LL;
+pi:=&*[(1-t^i):i in L]; A:=Poly!((1-t^r)/(1-t));
+G:=GCD(pi, A); dG:=Degree(G);
+B:=Poly!(A/G); dB:=Degree(B);
+a,be,c:=XGCD(pi, B); dbe:=Degree(be);
+R<[v]>:=PolynomialRing(QQ,dG+2);
+va:=Name(R,dG+2);
+bnew:=&+[Coefficient(be,i)*va^i: i in [0..dbe]];
+RR:=&+[v[i]*va^(i-1): i in [1..dG+1]];
+Bnew:=&+[Coefficient(B,i)*va^i: i in [0..dB]];
+AA:=bnew-RR*Bnew;
+S:=[Coefficient(AA,va, 0)] cat [Coefficient(AA, va, r-i): i in [1..r-1]];
+empty:=[];
+for a in L do
+dd:=GCD(a,r); tt:=r/dd;
+relations:=empty cat [&+[S[dd*l+i]: l in [0..tt-1]]: i in [1..dd]];
+empty:=relations;
+end for;
+Mat:=Matrix(QQ,[[Coefficient(empty[i],v[j],1):j in [1..dG+1]]:i in
+[1..#empty]]);
+zero:=[0: i in [1..dG+2]];
+V:=-Vector(QQ,[Evaluate(empty[i],zero): i in [1..#empty]]);
+MF:=Transpose(Mat); x,y,z:=IsConsistent(MF,V);
+yy:=&+[y[i+1]*va^(i):i in [0..dG]];
+sigma:=bnew-yy*Bnew;
+Sigma:=[QQ!Coefficient(sigma, va, 0)] cat [QQ!Coefficient(sigma, va,
+i): i in [1..r-1]];
+return Sigma;
+end function;
+
+// ---------- Example run ----------
+Contribution(5,[11,13]);
+
+
+// This function output the contributions in the Riemann-Roch formula  for all three singularities.
+function Con(n,a,b,c)
+if a eq 1 then 
+L1:=[0,0];
+else
+L1:=Contribution(a,[b,c]);
+end if;
+if b eq 1 then
+L2:=[0,0];
+else
+L2:=Contribution(b,[a,c]);
+end if;
+if c eq 1 then
+L3:=[0,0];
+else
+L3:=Contribution(c,[a,b]);
+end if;
+l1:= n mod a; c1:=L1[l1+1]-L1[1];
+l2:= n mod b; c2:=L2[l2+1]-L2[1];
+l3:= n mod c; c3:=L3[l3+1]-L3[1];
+return c1+c2+c3;
+end function;
+
+// ---------- Example run ----------
+// Calculate the Euler characteristics of the sheaf \Oh(n) on weighted projective plane \PP(5,11, 13).
+// For example, the dimension of H^0(\Oh(n)) for n in [1..20] can be given
+a,b,c:=Explode([5,11,13]);
+[1+1/2*(n^2+n*(a+b+c))/(a*b*c)+Con(n, a,b,c): n in [1..20]];
+
+// The contributions from the singularities are periodic.
+// The following function puts contributions from all three singularities Con(n,a,b,c) for n in [0..a*b*c-1] in one vector.
+
+function MakeCon(a,b,c)
+    L1 := (a eq 1) select [0,0] else Contribution(a,[b,c]);
+    L2 := (b eq 1) select [0,0] else Contribution(b,[a,c]);
+    L3 := (c eq 1) select [0,0] else Contribution(c,[a,b]);
+ return [((a eq 1) select 0 else L1[(n mod a)+1] - L1[1]) +
+        ((b eq 1) select 0 else L2[(n mod b)+1] - L2[1]) +
+        ((c eq 1) select 0 else L3[(n mod c)+1] - L3[1]): n in [0..a*b*c-1]];
+end function;
+
+// ---------- Example run ----------
+// Calculate the Euler characteristics of the sheaf \Oh(n) on weighted projective plane \PP(5,11, 13).
+// For example, the dimension of H^0(\Oh(n)) for n in [1..20] can be given
+a,b,c:=Explode([3,5,7]);
+[1+1/2*(n^2+n*(a+b+c))/(a*b*c)+MakeCon(a,b,c)[n mod (a*b*c) + 1]: n in [0..100]];
+
+
+
+
+// The following functions given another way to find degree $deg$ curves that pass through the blowup point $mult$ times on \PP(a,b,c).
+
+function ExponentTriples(N, wa, wb, wc)
+    triples := [];
+    maxA := N div wa;
+    for aExp in [0..maxA] do
+        rem1 := N - wa*aExp;
+        maxB := rem1 div wb;
+        for bExp in [0..maxB] do
+            rem2 := rem1 - wb*bExp;
+            if rem2 mod wc eq 0 then
+                cExp := rem2 div wc;
+                Append(~triples, <aExp, bExp, cExp>);
+            end if;
+        end for;
+    end for;
+    return triples;
+end function;
+
+function RowTriples(d)
+    rows := [];
+    for u in [0..d-1] do
+        for v in [0..d-1-u] do
+            w := d - 1 - u - v;
+            Append(~rows, <u, v, w>);
+        end for;
+    end for;
+    return rows;
+end function;
+
+
+
+// ---------- Memory-safe DesiredCurves ----------
+procedure DesiredCurves(a, b, c, def_i)
+
+    printf "WPS: P%o\n------------------\n", [a,b,c];
+
+    Pair := Eff(a,b,c);
+    if &*Pair ne 1 then
+        printf "Output of Eff function: %o\n--------------------\n", Pair;
+        printf "================================================= i=%o\n", def_i;
+        return;
+    end if;
+
+    M, N := SEff(a,b,c,def_i);
+    if #N eq 0 then
+        printf "================================================= i=%o\n", def_i;
+        return;
+    end if;
+
+    // Guard to avoid gigantic dense matrices (entries count r*n)
+    // Tune as you like; 2e6 entries is typically safe on modest RAM.
+    LIMIT := 2000000;
+
+    for idx in [1..#N] do
+        d := M[idx];
+        Ndeg := N[idx];
+
+        rowTriples := RowTriples(d);
+        r := #rowTriples;
+
+        cols := ExponentTriples(Ndeg, a, b, c);
+        n := #cols;
+
+        if r*n gt LIMIT then
+            // Skip instead of risking a crash
+            printf "Skipping (k=%o, n=%o): r*n=%o exceeds %o\n", d, Ndeg, r*n, LIMIT;
+            continue;
+        end if;
+
+        // Build integer matrix X (r x n) with entries:
+        // X[(u,v,w),(A,B,C)] = binom(A,u) * binom(B,v) * binom(C,w) * u! v! w!
+        X := ZeroMatrix(Integers(), r, n);
+        rowFactors := [ Factorial(rowTriples[j][1]) * Factorial(rowTriples[j][2]) * Factorial(rowTriples[j][3]) : j in [1..r] ];
+
+        for j in [1..r] do
+            u := rowTriples[j][1];
+            v := rowTriples[j][2];
+            w := rowTriples[j][3];
+            uf := rowFactors[j];
+            for col in [1..n] do
+                Aexp := cols[col][1];
+                Bexp := cols[col][2];
+                Cexp := cols[col][3];
+                X[j, col] := uf * Binomial(Aexp, u) * Binomial(Bexp, v) * Binomial(Cexp, w);
+            end for;
+        end for;
+
+        // Solve XT * vec = 0 ⇒ Nullspace(XT) over Q
+        XT := Transpose(X);
+        XTrat := ChangeRing(XT, Rationals());
+        K := Nullspace(XTrat);
+
+        if Dimension(K) eq 1 then
+            printf "Desired Curve may appear for Deficiency: %o, k=%o, n=%o\n", def_i, d, Ndeg;
+        end if;
+    end for;
+
+    printf "================================================= i=%o\n", def_i;
+end procedure;
+
+function FasterCurve(deg, mult,a,b,c)
+PP<x,y,z>:=PolynomialRing(Rationals(),[a,b,c]);
+
+    // Guard to avoid gigantic dense matrices (entries count r*n)
+    // Tune as you like; 2e6 entries is typically safe on modest RAM.
+    LIMIT := 2000000;
+
+          d := mult;
+        Ndeg:=deg;
+        rowTriples := RowTriples(d);
+        r := #rowTriples;
+
+        cols := ExponentTriples(Ndeg, a, b, c);
+	
+        n := #cols;
+	Monomials:=[x^cols[i][1]*y^cols[i][2]*z^cols[i][3]: i in [1..n]];
+
+        if r*n gt LIMIT then
+            // Skip instead of risking a crash
+            printf "Skipping (k=%o, n=%o): r*n=%o exceeds %o\n", d, Ndeg, r*n, LIMIT;
+        end if;
+
+        // Build integer matrix X (r x n) with entries:
+        // X[(u,v,w),(A,B,C)] = binom(A,u) * binom(B,v) * binom(C,w) * u! v! w!
+        X := ZeroMatrix(Integers(), r, n);
+        rowFactors := [ Factorial(rowTriples[j][1]) * Factorial(rowTriples[j][2]) * Factorial(rowTriples[j][3]) : j in [1..r] ];
+
+        for j in [1..r] do
+            u := rowTriples[j][1];
+            v := rowTriples[j][2];
+            w := rowTriples[j][3];
+            uf := rowFactors[j];
+            for col in [1..n] do
+                Aexp := cols[col][1];
+                Bexp := cols[col][2];
+                Cexp := cols[col][3];
+                X[j, col] := uf * Binomial(Aexp, u) * Binomial(Bexp, v) * Binomial(Cexp, w);
+            end for;
+        end for;
+
+        // Solve XT * vec = 0 ⇒ Nullspace(XT) over Q
+        XT := Transpose(X);
+        XTrat := ChangeRing(XT, Rationals());
+        K := Nullspace(XTrat);
+	D:=Dimension(K);
+	B:=Basis(K);
+	return D, [&+[B[i][j]*Monomials[j]: j in [1..n]]: i in [1..D]];
+end function;
+
+
+//The following procedures check the Laurent polynomial for each case. 
+
+//1) X(8,15,43)
+
+ wts:=[8,15,43];
+deg:=645; mult:=9;
+a,b,c:=Explode(wts);
+
+m,L:=FasterCurve(deg, mult,a,b,c);
+//Output L=
+[
+    -x^75*y^3 - 3*x^60*y^11 + 7*x^30*y^27 + 5*x^15*y^35 - y^43 + 9*x^64*y^6*z + 6*x^49*y^14*z - 45*x^34*y^22*z -
+        50*x^19*y^30*z + 7*x^4*y^38*z + 3*x^68*y*z^2 + 117*x^38*y^17*z^2 + 192*x^23*y^25*z^2 - 21*x^8*y^33*z^2 -
+        42*x^57*y^4*z^3 - 193*x^42*y^12*z^3 - 370*x^27*y^20*z^3 + 56*x^12*y^28*z^3 + 180*x^46*y^7*z^4 +
+        385*x^31*y^15*z^4 - 170*x^16*y^23*z^4 - 2*x*y^31*z^4 + 18*x^50*y^2*z^5 - 126*x^35*y^10*z^5 + 372*x^20*y^18*z^5 +
+        6*x^5*y^26*z^5 - 160*x^39*y^5*z^6 - 502*x^24*y^13*z^6 + 16*x^9*y^21*z^6 - 2*x^43*z^7 + 331*x^28*y^8*z^7 -
+        98*x^13*y^16*z^7 + 54*x^32*y^3*z^8 + 210*x^17*y^11*z^8 - 3*x^2*y^19*z^8 - 208*x^21*y^6*z^9 + 15*x^6*y^14*z^9 -
+        8*x^25*y*z^10 - 45*x^10*y^9*z^10 + 69*x^14*y^4*z^11 + 3*x^3*y^7*z^12 - 12*x^7*y^2*z^13 + z^15
+]
+
+
+f:=L[1];
+support, coefficients, ref, m1, m2, Fuv :=
+    ToricSupportOfPolynomial(f,wts,deg);
+h:=Numerator(Fuv);
+
+//-u^9 + 3*u^8*v^2 + 9*u^8*v - 3*u^8 - 42*u^7*v^3 + 6*u^7*v + 18*u^6*v^5 + 180*u^6*v^4 - 193*u^6*v^3 + 117*u^6*v^2 -
+    45*u^6*v + 7*u^6 - 2*u^5*v^7 - 160*u^5*v^6 - 126*u^5*v^5 + 385*u^5*v^4 - 370*u^5*v^3 + 192*u^5*v^2 - 50*u^5*v +
+    5*u^5 + 54*u^4*v^8 + 331*u^4*v^7 - 502*u^4*v^6 + 372*u^4*v^5 - 170*u^4*v^4 + 56*u^4*v^3 - 21*u^4*v^2 + 7*u^4*v - u^4
+    - 8*u^3*v^10 - 208*u^3*v^9 + 210*u^3*v^8 - 98*u^3*v^7 + 16*u^3*v^6 + 6*u^3*v^5 - 2*u^3*v^4 + 69*u^2*v^11 -
+    45*u^2*v^10 + 15*u^2*v^9 - 3*u^2*v^8 - 12*u*v^13 + 3*u*v^12 + v^15);
+
+
+//Output: Absolutely irreducible
+
+//2)X(13,15,68)
+
+ wts:=[13,15,68];
+deg:=1035; mult:=9;
+a,b,c:=Explode(wts);
+
+m,L:=FasterCurve(deg, mult,a,b,c);
+f:=L[1];
+support, coefficients, ref, m1, m2, Fuv :=
+    ToricSupportOfPolynomial(f,wts,deg);
+h:=Numerator(Fuv);
+
+h;
+//-u^9 + 3*u^8*v^2 + 9*u^8*v - 3*u^8 - 42*u^7*v^3 + 6*u^7*v + 18*u^6*v^5 + 180*u^6*v^4 - 193*u^6*v^3 + 117*u^6*v^2 -
+    45*u^6*v + 7*u^6 - 2*u^5*v^7 - 160*u^5*v^6 - 126*u^5*v^5 + 385*u^5*v^4 - 370*u^5*v^3 + 192*u^5*v^2 - 50*u^5*v +
+    5*u^5 + 54*u^4*v^8 + 331*u^4*v^7 - 502*u^4*v^6 + 372*u^4*v^5 - 170*u^4*v^4 + 56*u^4*v^3 - 21*u^4*v^2 + 7*u^4*v - u^4
+    - 8*u^3*v^10 - 208*u^3*v^9 + 210*u^3*v^8 - 98*u^3*v^7 + 16*u^3*v^6 + 6*u^3*v^5 - 2*u^3*v^4 + 69*u^2*v^11 -
+    45*u^2*v^10 + 15*u^2*v^9 - 3*u^2*v^8 - 12*u*v^13 + 3*u*v^12 + v^15;
+
+//3) X(5,33,49)
+
+wts:=[5,33,49];
+deg:=1617; mult:=18;
+a,b,c:=Explode(wts);
+
+m,L:=FasterCurve(deg, mult,a,b,c);
+f:=L[1];
+support, coefficients, ref, m1, m2, Fuv :=
+    ToricSupportOfPolynomial(f,wts,deg);
+Fuv;
+h:=Numerator(Fuv);
+h;
+//3*u^19*v - u^19 - 5*u^18*v^3 - 73*u^18*v^2 + 54*u^18*v - 11*u^18 + 156*u^17*v^4 + 684*u^17*v^3 - 842*u^17*v^2 +
+    335*u^17*v - 45*u^17 - 43*u^16*v^6 - 1946*u^16*v^5 - 2680*u^16*v^4 + 6015*u^16*v^3 - 3700*u^16*v^2 + 968*u^16*v -
+    93*u^16 - 4*u^15*v^8 + 899*u^15*v^7 + 12947*u^15*v^6 - 1073*u^15*v^5 - 20735*u^15*v^4 + 19848*u^15*v^3 -
+    7984*u^15*v^2 + 1518*u^15*v - 112*u^15 + 177*u^14*v^9 - 8433*u^14*v^8 - 50613*u^14*v^7 + 56709*u^14*v^6 +
+    14550*u^14*v^5 - 49647*u^14*v^4 + 31218*u^14*v^3 - 9362*u^14*v^2 + 1412*u^14*v - 87*u^14 - 203*u^13*v^11 -
+    2723*u^13*v^10 + 52777*u^13*v^9 + 100997*u^13*v^8 - 254428*u^13*v^7 + 162918*u^13*v^6 - 9617*u^13*v^5 -
+    37357*u^13*v^4 + 20828*u^13*v^3 - 5278*u^13*v^2 + 683*u^13*v - 37*u^13 + 47*u^12*v^13 + 5353*u^12*v^12 +
+    7733*u^12*v^11 - 230600*u^12*v^10 + 83132*u^12*v^9 + 409688*u^12*v^8 - 578629*u^12*v^7 + 365736*u^12*v^6 -
+    134868*u^12*v^5 + 32230*u^12*v^4 - 5677*u^12*v^3 + 877*u^12*v^2 - 114*u^12*v + 8*u^12 - 2704*u^11*v^14 -
+    44342*u^11*v^13 + 99708*u^11*v^12 + 471752*u^11*v^11 - 920252*u^11*v^10 + 469215*u^11*v^9 + 221301*u^11*v^8 -
+    454104*u^11*v^7 + 325584*u^11*v^6 - 150398*u^11*v^5 + 50474*u^11*v^4 - 12489*u^11*v^3 + 2171*u^11*v^2 - 236*u^11*v +
+    12*u^11 + 638*u^10*v^16 + 35690*u^10*v^15 + 94898*u^10*v^14 - 629732*u^10*v^13 + 345131*u^10*v^12 + 839963*u^10*v^11
+    - 1526563*u^10*v^10 + 1262306*u^10*v^9 - 676590*u^10*v^8 + 265042*u^10*v^7 - 80522*u^10*v^6 + 19669*u^10*v^5 -
+    4059*u^10*v^4 + 760*u^10*v^3 - 128*u^10*v^2 + 16*u^10*v - u^10 - 66*u^9*v^18 - 15151*u^9*v^17 - 151631*u^9*v^16 +
+    300950*u^9*v^15 + 575212*u^9*v^14 - 1752155*u^9*v^13 + 1899365*u^9*v^12 - 1204928*u^9*v^11 + 515040*u^9*v^10 -
+    157996*u^9*v^9 + 35176*u^9*v^8 - 5389*u^9*v^7 + 483*u^9*v^6 - 13*u^9*v^5 - u^9*v^4 + 3849*u^8*v^19 + 99594*u^8*v^18
+    + 38750*u^8*v^17 - 883226*u^8*v^16 + 1519209*u^8*v^15 - 1267065*u^8*v^14 + 642750*u^8*v^13 - 217368*u^8*v^12 +
+    51068*u^8*v^11 - 8222*u^8*v^10 + 801*u^8*v^9 - 29*u^8*v^8 - u^8*v^7 - 562*u^7*v^21 - 40124*u^7*v^20 -
+    141018*u^7*v^19 + 622074*u^7*v^18 - 799410*u^7*v^17 + 529152*u^7*v^16 - 210119*u^7*v^15 + 53201*u^7*v^14 -
+    8717*u^7*v^13 + 859*u^7*v^12 - 30*u^7*v^11 - 2*u^7*v^10 + 38*u^6*v^23 + 10688*u^6*v^22 + 97530*u^6*v^21 -
+    278285*u^6*v^20 + 279978*u^6*v^19 - 144398*u^6*v^18 + 42487*u^6*v^17 - 7280*u^6*v^16 + 703*u^6*v^15 - 33*u^6*v^14 -
+    1872*u^5*v^24 - 40224*u^5*v^23 + 85302*u^5*v^22 - 66435*u^5*v^21 + 25265*u^5*v^20 - 4913*u^5*v^19 + 441*u^5*v^18 -
+    12*u^5*v^17 + 199*u^4*v^26 + 11314*u^4*v^25 - 18120*u^4*v^24 + 10385*u^4*v^23 - 2600*u^4*v^22 + 253*u^4*v^21 -
+    3*u^4*v^20 - 10*u^3*v^28 - 2227*u^3*v^27 + 2581*u^3*v^26 - 974*u^3*v^25 + 120*u^3*v^24 + 299*u^2*v^29 - 224*u^2*v^28
+    + 42*u^2*v^27 - 25*u*v^31 + 9*u*v^30 + v^33
+
+//4) X(5,56,83)
+
+wts:=[5,56,83];
+deg:=2744; mult:=18;
+a,b,c:=Explode(wts);
+
+m,L:=FasterCurve(deg, mult,a,b,c);
+f:=L[1];
+IsIrreducible(f);
+support, coefficients, ref, m1, m2, Fuv :=
+    ToricSupportOfPolynomial(f,wts,deg);
+h:=Numerator(Fuv);
+h;
+
+-3*u^19*v + u^19 + 5*u^18*v^3 + 73*u^18*v^2 - 54*u^18*v + 11*u^18 - 156*u^17*v^4 - 684*u^17*v^3 + 842*u^17*v^2 -
+    335*u^17*v + 45*u^17 + 43*u^16*v^6 + 1946*u^16*v^5 + 2680*u^16*v^4 - 6015*u^16*v^3 + 3700*u^16*v^2 - 968*u^16*v +
+    93*u^16 + 4*u^15*v^8 - 899*u^15*v^7 - 12947*u^15*v^6 + 1073*u^15*v^5 + 20735*u^15*v^4 - 19848*u^15*v^3 +
+    7984*u^15*v^2 - 1518*u^15*v + 112*u^15 - 177*u^14*v^9 + 8433*u^14*v^8 + 50613*u^14*v^7 - 56709*u^14*v^6 -
+    14550*u^14*v^5 + 49647*u^14*v^4 - 31218*u^14*v^3 + 9362*u^14*v^2 - 1412*u^14*v + 87*u^14 + 203*u^13*v^11 +
+    2723*u^13*v^10 - 52777*u^13*v^9 - 100997*u^13*v^8 + 254428*u^13*v^7 - 162918*u^13*v^6 + 9617*u^13*v^5 +
+    37357*u^13*v^4 - 20828*u^13*v^3 + 5278*u^13*v^2 - 683*u^13*v + 37*u^13 - 47*u^12*v^13 - 5353*u^12*v^12 -
+    7733*u^12*v^11 + 230600*u^12*v^10 - 83132*u^12*v^9 - 409688*u^12*v^8 + 578629*u^12*v^7 - 365736*u^12*v^6 +
+    134868*u^12*v^5 - 32230*u^12*v^4 + 5677*u^12*v^3 - 877*u^12*v^2 + 114*u^12*v - 8*u^12 + 2704*u^11*v^14 +
+    44342*u^11*v^13 - 99708*u^11*v^12 - 471752*u^11*v^11 + 920252*u^11*v^10 - 469215*u^11*v^9 - 221301*u^11*v^8 +
+    454104*u^11*v^7 - 325584*u^11*v^6 + 150398*u^11*v^5 - 50474*u^11*v^4 + 12489*u^11*v^3 - 2171*u^11*v^2 + 236*u^11*v -
+    12*u^11 - 638*u^10*v^16 - 35690*u^10*v^15 - 94898*u^10*v^14 + 629732*u^10*v^13 - 345131*u^10*v^12 - 839963*u^10*v^11
+    + 1526563*u^10*v^10 - 1262306*u^10*v^9 + 676590*u^10*v^8 - 265042*u^10*v^7 + 80522*u^10*v^6 - 19669*u^10*v^5 +
+    4059*u^10*v^4 - 760*u^10*v^3 + 128*u^10*v^2 - 16*u^10*v + u^10 + 66*u^9*v^18 + 15151*u^9*v^17 + 151631*u^9*v^16 -
+    300950*u^9*v^15 - 575212*u^9*v^14 + 1752155*u^9*v^13 - 1899365*u^9*v^12 + 1204928*u^9*v^11 - 515040*u^9*v^10 +
+    157996*u^9*v^9 - 35176*u^9*v^8 + 5389*u^9*v^7 - 483*u^9*v^6 + 13*u^9*v^5 + u^9*v^4 - 3849*u^8*v^19 - 99594*u^8*v^18
+    - 38750*u^8*v^17 + 883226*u^8*v^16 - 1519209*u^8*v^15 + 1267065*u^8*v^14 - 642750*u^8*v^13 + 217368*u^8*v^12 -
+    51068*u^8*v^11 + 8222*u^8*v^10 - 801*u^8*v^9 + 29*u^8*v^8 + u^8*v^7 + 562*u^7*v^21 + 40124*u^7*v^20 +
+    141018*u^7*v^19 - 622074*u^7*v^18 + 799410*u^7*v^17 - 529152*u^7*v^16 + 210119*u^7*v^15 - 53201*u^7*v^14 +
+    8717*u^7*v^13 - 859*u^7*v^12 + 30*u^7*v^11 + 2*u^7*v^10 - 38*u^6*v^23 - 10688*u^6*v^22 - 97530*u^6*v^21 +
+    278285*u^6*v^20 - 279978*u^6*v^19 + 144398*u^6*v^18 - 42487*u^6*v^17 + 7280*u^6*v^16 - 703*u^6*v^15 + 33*u^6*v^14 +
+    1872*u^5*v^24 + 40224*u^5*v^23 - 85302*u^5*v^22 + 66435*u^5*v^21 - 25265*u^5*v^20 + 4913*u^5*v^19 - 441*u^5*v^18 +
+    12*u^5*v^17 - 199*u^4*v^26 - 11314*u^4*v^25 + 18120*u^4*v^24 - 10385*u^4*v^23 + 2600*u^4*v^22 - 253*u^4*v^21 +
+    3*u^4*v^20 + 10*u^3*v^28 + 2227*u^3*v^27 - 2581*u^3*v^26 + 974*u^3*v^25 - 120*u^3*v^24 - 299*u^2*v^29 + 224*u^2*v^28
+    - 42*u^2*v^27 + 25*u*v^31 - 9*u*v^30 - v^33
+
